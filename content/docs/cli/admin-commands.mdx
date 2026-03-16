@@ -475,3 +475,52 @@ podspawn remove-project backend
 # removed project backend
 # note: image podspawn/backend:podfile-abc123 still exists; run 'docker rmi ...' to remove it
 ```
+
+---
+
+## update
+
+Self-updates the podspawn binary to the latest release from GitHub.
+
+```bash
+podspawn update
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--check` | `false` | Only check for updates, don't download |
+
+### What it does
+
+1. Queries the GitHub API for the latest release tag
+2. Compares with the current version
+3. Downloads the correct binary for your OS and architecture
+4. Replaces the current binary atomically
+
+Active SSH sessions are not affected by the update. The new binary is used for the next `spawn` invocation.
+
+### Examples
+
+```bash
+# Update to latest
+podspawn update
+
+# Check without downloading
+podspawn update --check
+```
+
+### Output
+
+```
+current: v0.1.0, latest: v0.2.0
+downloading v0.2.0...
+updated to v0.2.0
+```
+
+If already on the latest:
+
+```
+already on latest version (v0.2.0)
+```
