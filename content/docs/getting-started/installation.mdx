@@ -3,6 +3,8 @@ title: Installation
 description: Install podspawn on the server and optionally on client machines
 ---
 
+Podspawn is a **single binary** that works as both server and client. Same install, different commands. Install it once and it handles both roles.
+
 ## Requirements
 
 **Server:**
@@ -12,11 +14,11 @@ description: Install podspawn on the server and optionally on client machines
 - Root access
 
 **Client:**
-- Any SSH client on any OS
-- Optional: the `podspawn` binary for `.pod` namespace routing
+- Any SSH client on any OS works without podspawn
+- Install the podspawn binary for `.pod` namespace routing (optional but recommended)
 
 <Callout type="info">
-OpenSSH 7.4 shipped in December 2016. Check your version with `ssh -V`.
+There is no separate server package or client package. The same `podspawn` binary runs `server-setup` on the server and `connect`/`setup` on the client. Install it on both.
 </Callout>
 
 ---
@@ -198,7 +200,7 @@ podspawn update --check
 
 | Path | Purpose |
 |---|---|
-| `/usr/local/bin/podspawn` | The binary (server and client are the same) |
+| `/usr/local/bin/podspawn` | Single binary for both server and client |
 | `/etc/podspawn/` | Server config directory (created by `server-setup`) |
 | `/etc/podspawn/keys/` | Per-user SSH public key store |
 | `/etc/podspawn/config.yaml` | Server configuration |

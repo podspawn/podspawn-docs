@@ -34,11 +34,13 @@ ssh alice@yourserver.com
 
 ## Architecture at a glance
 
-Podspawn consists of two paths:
+Podspawn is a single binary that serves both roles:
 
 **Server side** -- sshd invokes `podspawn auth-keys` to check if a user is a container user. If yes, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates/reattaches a Docker container and pipes I/O.
 
-**Client side** -- an optional `ProxyCommand` entry in `~/.ssh/config` creates a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container.
+**Client side** -- the same binary provides `podspawn connect` as a `ProxyCommand` in `~/.ssh/config`, creating a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container.
+
+Same install, same binary, different commands. The client binary is optional -- any SSH client works without it.
 
 <Cards>
   <Card title="Installation" href="/docs/getting-started/installation" />
