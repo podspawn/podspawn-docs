@@ -1,41 +1,89 @@
 ---
 title: Client Commands
-description: CLI reference for podspawn client-side commands that configure SSH routing
+description: CLI reference for podspawn client-side commands
 ---
 
-Client commands run on the developer's machine. They set up the `.pod` namespace routing so that `ssh alice@work.pod` reaches the right server and creates a container.
+Client commands run on the developer's machine. They configure the `.pod` namespace routing so that `ssh alice@work.pod` reaches the right server and creates a container.
 
-The client binary is optional. Without it, users SSH directly to the server and still get containers. The client adds the `.pod` namespace magic and multi-server routing.
+The client binary is optional. Without it, users SSH directly to the server and still get containers. The client adds `.pod` namespace resolution and multi-server routing.
 
-## connect
+## setup
 
-The `ProxyCommand` handler for `.pod` namespace routing. SSH calls this automatically when a hostname matches `*.pod` in `~/.ssh/config`. It resolves the `.pod` hostname to a real server address using the client config, then relays the TCP connection.
+Configures `~/.ssh/config` with the `Host *.pod` block that wires up podspawn's ProxyCommand. Creates the file and `~/.ssh/` directory if they don't exist. Idempotent: running it twice does nothing.
 
 ```bash
-podspawn connect <user> <host> <port>
+podspawn setup
 ```
 
-### Arguments
+### What it writes
 
-| Argument | Description |
-|----------|-------------|
-| `user` | SSH username (passed as `%r` by SSH) |
-| `host` | Hostname including `.pod` suffix (passed as `%h` by SSH) |
-| `port` | SSH port (passed as `%p` by SSH) |
+```
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
 
-### How it works
+`SetEnv`/`SendEnv` pass the `.pod` hostname to the server for project routing. `UserKnownHostsFile /dev/null` and `StrictHostKeyChecking no` exist because `.pod` hostnames are virtual, they all resolve to real servers whose host keys you already trust.
 
-1. If the host ends in `.pod`, loads `~/.podspawn/config.yaml` to resolve the hostname
-2. Looks up the host in `servers.mappings` for a direct match
-3. Falls back to `servers.default` if no mapping exists
-4. Opens a TCP connection to the resolved address
-5. Relays stdin/stdout bidirectionally between SSH and the server
+### Examples
 
-If the host does not end in `.pod`, it connects directly (passthrough mode).
+```bash
+# First run
+$ podspawn setup
+added *.pod block to ~/.ssh/config
 
-### Client config
+# Already configured
+$ podspawn setup
+~/.ssh/config already has Host *.pod block, skipping
+```
 
-The resolution relies on `~/.podspawn/config.yaml`:
+<Callout type="info">
+If you prefer not to install the client binary, copy the SSH config block above into `~/.ssh/config` manually. Or skip the `.pod` namespace entirely and SSH directly to the server.
+</Callout>
+
+---
+
+## config
+
+Show or edit client configuration stored at `~/.podspawn/config.yaml`.
+
+```bash
+podspawn config                          # show current config
+podspawn config set <key> <value>        # set a config value
+```
+
+### Valid keys
+
+| Key | Description |
+|-----|-------------|
+| `servers.default` | Fallback server for any `.pod` hostname without a specific mapping |
+| `servers.mappings.<host>` | Map a specific `.pod` hostname to a server address |
+
+### Examples
+
+```bash
+# Set the default server
+$ podspawn config set servers.default devbox.company.com
+set servers.default = devbox.company.com
+
+# Map gpu.pod to a specific machine
+$ podspawn config set servers.mappings.gpu.pod gpu-server.company.com
+set servers.mappings.gpu.pod = gpu-server.company.com
+
+# View the current config
+$ podspawn config
+config: /home/alice/.podspawn/config.yaml
+
+servers.default = devbox.company.com
+servers.mappings.gpu.pod = gpu-server.company.com
+```
+
+### Config file format
+
+The underlying YAML looks like this:
 
 ```yaml
 servers:
@@ -46,86 +94,288 @@ servers:
     personal.pod: my-homelab.ddns.net
 ```
 
-With this config:
-- `ssh alice@work.pod` connects to `devbox.company.com:22`
-- `ssh alice@gpu.pod` connects to `gpu-server.company.com:22`
-- `ssh alice@anything-else.pod` connects to `devbox.company.com:22` (default)
+### Output when empty
 
-### SSH config integration
-
-This is the `~/.ssh/config` block that invokes `connect`:
+If no config file exists, `podspawn config` prints instructions instead of an error:
 
 ```
-Host *.pod
-    ProxyCommand podspawn connect %r %h %p
-    SetEnv PODSPAWN_PROJECT=%n
-    SendEnv PODSPAWN_PROJECT
-    UserKnownHostsFile /dev/null
-    StrictHostKeyChecking no
+No client config found. Create one with:
+  podspawn config set servers.default yourserver.com
 ```
 
-The `SetEnv`/`SendEnv` lines pass the `.pod` hostname to the server as an environment variable. The server uses this for project routing.
+---
 
-`UserKnownHostsFile /dev/null` and `StrictHostKeyChecking no` are set because `.pod` hostnames are virtual. They all resolve to real servers whose host keys the user already trusts through normal SSH.
+## servers
+
+Lists all configured servers with a live connectivity check. Tests TCP reachability on port 22 and reports latency.
+
+```bash
+podspawn servers
+```
+
+### Output format
+
+```
+  (default)                 devbox.company.com  ok (23ms)
+  gpu.pod                   gpu-server.company.com  ok (45ms)
+  localhost.pod             127.0.0.1  ok (1ms)
+```
+
+`localhost.pod` is always included, it resolves to `127.0.0.1` without any config. Unreachable servers show `unreachable` instead of latency.
+
+### Example with an unreachable server
+
+```
+  (default)                 devbox.company.com  ok (23ms)
+  staging.pod               staging.internal  unreachable
+  localhost.pod             127.0.0.1  ok (1ms)
+```
 
 <Callout type="info">
-The `connect` command is a thin TCP relay. It does not implement any SSH protocol logic. The actual SSH handshake happens between your SSH client and the server's sshd.
+The connectivity check is a TCP probe on port 22 with a 3-second timeout. It does not authenticate or verify that podspawn is installed on the remote host. Use `podspawn ping` for a deeper check.
 </Callout>
 
 ---
 
-## setup
+## ssh
 
-Configures the client's `~/.ssh/config` with the `Host *.pod` block. Creates the file and `~/.ssh/` directory if they don't exist.
+Convenience wrapper around `ssh`. Appends `.pod` to bare hostnames (those without dots or colons), then hands off to the system SSH binary.
 
 ```bash
-podspawn setup
+podspawn ssh <user@host> [-- command...]
 ```
 
-### What it does
+### Hostname resolution
 
-1. Checks if `~/.ssh/config` already has a `Host *.pod` block
-2. If present, prints a message and exits (idempotent)
-3. If absent, appends the block:
+| Input | Becomes |
+|-------|---------|
+| `alice@backend` | `ssh alice@backend.pod` |
+| `alice@backend.pod` | `ssh alice@backend.pod` (unchanged) |
+| `alice@myserver.com` | `ssh alice@myserver.com` (unchanged, has a dot) |
 
+Bare names (no dots, no colons) get `.pod` appended. Everything else passes through unchanged.
+
+### Remote commands
+
+Use `--` to separate the remote command from the SSH target:
+
+```bash
+# Interactive shell
+$ podspawn ssh alice@backend
+
+# Run a command
+$ podspawn ssh alice@backend -- ls -la /workspace
+
+# Multi-word commands work as expected
+$ podspawn ssh alice@backend -- cat /etc/os-release
 ```
-Host *.pod
-    ProxyCommand podspawn connect %r %h %p
-    SetEnv PODSPAWN_PROJECT=%n
-    SendEnv PODSPAWN_PROJECT
-    UserKnownHostsFile /dev/null
-    StrictHostKeyChecking no
+
+<Callout type="info">
+Flag parsing is disabled for this command. Everything after the target is passed through to SSH, so flags like `-v` or `-L 8080:localhost:8080` do not work. Use `ssh` directly for advanced SSH flags.
+</Callout>
+
+---
+
+## open
+
+Opens VS Code or Cursor with Remote SSH connected to a podspawn container.
+
+```bash
+podspawn open <user@host> [path]
 ```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cursor` | `false` | Open in Cursor instead of VS Code |
+
+### Arguments
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `user@host` | Yes | | SSH target (`.pod` appended to bare names, same as `ssh` command) |
+| `path` | No | `/workspace` | Remote directory to open |
 
 ### Examples
 
 ```bash
-# First run
-$ podspawn setup
-added *.pod block to ~/.ssh/config
+# Open VS Code at /workspace
+$ podspawn open alice@backend
+opening alice@backend.pod in code at /workspace
 
-# Second run (idempotent)
-$ podspawn setup
-~/.ssh/config already has Host *.pod block, skipping
+# Open a specific directory
+$ podspawn open alice@backend /app
+opening alice@backend.pod in code at /app
+
+# Use Cursor instead
+$ podspawn open alice@backend --cursor
+opening alice@backend.pod in cursor at /workspace
 ```
 
-### Manual alternative
+### What it runs
 
-If you prefer not to install the client binary, add these lines to `~/.ssh/config` manually:
-
-```
-Host *.pod
-    ProxyCommand podspawn connect %r %h %p
-    SetEnv PODSPAWN_PROJECT=%n
-    SendEnv PODSPAWN_PROJECT
-    UserKnownHostsFile /dev/null
-    StrictHostKeyChecking no
-```
-
-Or skip the `.pod` namespace entirely and SSH directly:
+Under the hood, this executes:
 
 ```bash
-ssh alice@devbox.company.com
+code --remote ssh-remote+alice@backend.pod /workspace
 ```
 
-You lose multi-server routing and the `.pod` naming, but all SSH features (SFTP, port forwarding, agent forwarding) work identically.
+Or with `--cursor`:
+
+```bash
+cursor --remote ssh-remote+alice@backend.pod /workspace
+```
+
+The `code` or `cursor` binary must be in your `PATH`. If not found, the error message tells you how to fix it.
+
+---
+
+## ping
+
+Tests connectivity to a podspawn server. Performs a TCP probe on port 22, then attempts an SSH connection to detect the remote podspawn version.
+
+```bash
+podspawn ping <server>
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `server` | Hostname, IP address, or `.pod` name to check |
+
+The server argument supports `.pod` names, which are resolved through the client config before probing.
+
+### Output
+
+```bash
+$ podspawn ping devbox.company.com
+pinging devbox.company.com (port 22)...
+  tcp connect: 23ms
+  ssh round-trip: 187ms
+  remote version: podspawn v0.3.0
+```
+
+If SSH authentication fails (expected when probing without valid credentials), the SSH portion reports that TCP is reachable:
+
+```bash
+$ podspawn ping devbox.company.com
+pinging devbox.company.com (port 22)...
+  tcp connect: 23ms
+  ssh probe failed (auth required; TCP is reachable)
+```
+
+If the server is completely unreachable, the command returns an error:
+
+```bash
+$ podspawn ping dead-server.com
+pinging dead-server.com (port 22)...
+Error: unreachable: dial tcp: i/o timeout
+```
+
+### .pod name resolution
+
+```bash
+# These work the same way
+$ podspawn ping devbox.company.com
+$ podspawn ping work.pod           # resolved via ~/.podspawn/config.yaml
+$ podspawn ping localhost.pod      # always resolves to 127.0.0.1
+```
+
+---
+
+## connect
+
+The `ProxyCommand` handler for `.pod` namespace routing. You don't call this directly. SSH invokes it automatically when connecting to a `*.pod` hostname, as configured by `podspawn setup`.
+
+```bash
+podspawn connect <user> <host> <port>
+```
+
+### Arguments
+
+| Argument | SSH token | Description |
+|----------|-----------|-------------|
+| `user` | `%r` | SSH username |
+| `host` | `%h` | Hostname including `.pod` suffix |
+| `port` | `%p` | SSH port |
+
+### Resolution logic
+
+1. If the host does not end in `.pod`, connect directly (passthrough)
+2. `localhost.pod` always resolves to `127.0.0.1` without reading any config
+3. For other `.pod` hosts, load `~/.podspawn/config.yaml`
+4. Look up the host in `servers.mappings` for a direct match
+5. Fall back to `servers.default` if no mapping exists
+6. Open a TCP connection (10-second timeout) and relay stdin/stdout bidirectionally
+
+### Resolution examples
+
+Given this config:
+
+```yaml
+servers:
+  default: devbox.company.com
+  mappings:
+    gpu.pod: gpu-server.company.com
+```
+
+| Host | Resolves to |
+|------|-------------|
+| `gpu.pod` | `gpu-server.company.com:22` |
+| `work.pod` | `devbox.company.com:22` (default fallback) |
+| `localhost.pod` | `127.0.0.1:22` (hardcoded) |
+| `myserver.com` | `myserver.com:22` (passthrough, not `.pod`) |
+
+<Callout type="info">
+The `connect` command is a thin TCP relay. It does not implement any SSH protocol logic. The SSH handshake happens between your SSH client and the server's sshd.
+</Callout>
+
+---
+
+## update
+
+Updates the podspawn binary to the latest release from GitHub.
+
+```bash
+podspawn update
+podspawn update --check
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--check` | `false` | Only check for updates, do not download or install |
+
+### Examples
+
+```bash
+# Check without installing
+$ podspawn update --check
+current: v0.2.1, latest: v0.3.0
+
+# Update in place
+$ podspawn update
+current: v0.2.1, latest: v0.3.0
+downloading v0.3.0...
+updated to v0.3.0
+
+# Already up to date
+$ podspawn update
+already on latest version (v0.3.0)
+```
+
+### How it works
+
+1. Fetches the latest release tag from the GitHub API (`/repos/podspawn/podspawn/releases/latest`)
+2. Compares against the current binary's version
+3. If `--check` is set, stops after printing the version comparison
+4. Downloads `podspawn_<version>_<os>_<arch>.tar.gz` from the release assets
+5. Extracts the binary to a temp directory
+6. Replaces the current binary with an atomic rename (falls back to copy for cross-device moves)
+
+<Callout type="info">
+The update replaces the binary at its current path. If podspawn is installed in a system directory like `/usr/local/bin`, you may need `sudo podspawn update`.
+</Callout>
