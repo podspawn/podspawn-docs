@@ -46,6 +46,9 @@ security:
   tmpfs: {}
   runtime: ""
 
+resources:
+  max_per_user: 3
+
 projects_file: /etc/podspawn/projects.yaml
 ```
 
@@ -109,6 +112,19 @@ Hardening options applied to every user container. See the dedicated [Security C
 | `readonly_rootfs` | `bool` | `false` | Mount the container root filesystem as read-only. |
 | `tmpfs` | `map[string]string` | `{}` | Tmpfs mounts to add. Keys are mount paths, values are mount options. |
 | `runtime` | `string` | `""` (empty) | OCI runtime name. Leave empty for the default Docker runtime, or set to `runsc` for gVisor. |
+
+## resources
+
+Controls resource limits for the podspawn installation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `resources.max_per_user` | `int` | `3` | Maximum number of concurrent sessions per user. Set to `0` for unlimited. When exceeded, new sessions are rejected with a message guiding the user to stop an existing one. |
+
+```yaml
+resources:
+  max_per_user: 3
+```
 
 ## projects_file
 

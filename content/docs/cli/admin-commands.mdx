@@ -130,36 +130,27 @@ podspawn cleanup --daemon
 podspawn cleanup --daemon --interval 30s
 ```
 
-### Running as a systemd timer
+### Running with systemd
 
-For production, a systemd timer is more reliable than `--daemon`:
+Podspawn ships systemd units in the deb/rpm packages. You can also use them manually:
 
-```ini
-# /etc/systemd/system/podspawn-cleanup.service
-[Unit]
-Description=Podspawn cleanup pass
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/podspawn cleanup
-```
-
-```ini
-# /etc/systemd/system/podspawn-cleanup.timer
-[Unit]
-Description=Run podspawn cleanup every minute
-
-[Timer]
-OnBootSec=60s
-OnUnitActiveSec=60s
-
-[Install]
-WantedBy=timers.target
-```
+**Option A: Persistent daemon (recommended)**
 
 ```bash
+# Shipped at /etc/systemd/system/podspawn-cleanup.service
+sudo systemctl enable --now podspawn-cleanup.service
+```
+
+This runs `podspawn cleanup --daemon --interval 60s` as a long-lived process.
+
+**Option B: Timer-based (alternative)**
+
+```bash
+# Shipped at /etc/systemd/system/podspawn-cleanup.timer
 sudo systemctl enable --now podspawn-cleanup.timer
 ```
+
+This runs a single cleanup pass every 60 seconds via systemd's timer infrastructure.
 
 <Callout type="info">
 The cleanup command is not in the critical path. The system works without it, just with slightly delayed cleanup. Orphaned containers from crashes will be caught on the next pass.
@@ -231,4 +222,83 @@ Scrape the Prometheus output with a textfile collector or a cron job:
 ```bash
 # Write metrics for node_exporter textfile collector
 podspawn status --prometheus > /var/lib/prometheus/node-exporter/podspawn.prom
+```
+
+---
+
+## list-users
+
+Lists all registered container users by scanning the key directory.
+
+```bash
+podspawn list-users
+```
+
+### Example output
+
+```
+alice  (3 keys)
+ci-runner  (1 key)
+deploy  (2 keys)
+```
+
+---
+
+## remove-user
+
+Removes a container user by deleting their key file and optionally destroying their active sessions.
+
+```bash
+podspawn remove-user <username> [flags]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--force` | `false` | Destroy active sessions without confirmation |
+
+### Behavior
+
+1. Checks the user exists in `/etc/podspawn/keys/`
+2. If the user has active sessions and `--force` is not set, returns an error
+3. With `--force`, destroys all active sessions (containers, services, networks)
+4. Removes the key file
+
+### Examples
+
+```bash
+# Remove user with no active sessions
+podspawn remove-user alice
+
+# Force-remove user with active sessions
+podspawn remove-user alice --force
+```
+
+<Callout type="warn">
+With `--force`, all active sessions are immediately destroyed. Connected SSH sessions will be terminated and unsaved work lost.
+</Callout>
+
+---
+
+## remove-project
+
+Deregisters a project and removes its local clone.
+
+```bash
+podspawn remove-project <name>
+```
+
+### Behavior
+
+1. Removes the project's local repository clone from `/var/lib/podspawn/projects/`
+2. Removes the project entry from `projects.yaml`
+3. Does NOT remove the Docker image (prints a hint to `docker rmi`)
+
+### Example
+
+```bash
+podspawn remove-project backend
+# removed project backend
+# note: image podspawn/backend:podfile-abc123 still exists; run 'docker rmi ...' to remove it
 ```
