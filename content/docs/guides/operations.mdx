@@ -166,7 +166,7 @@ Set up a systemd watchdog or external healthcheck to alert if the cleanup daemon
 
 ### Audit logging
 
-Podspawn logs session events (create, connect, disconnect, destroy) to the audit log at `/var/log/podspawn/audit.log`. Each line is a structured JSON entry with timestamp, user, project, container ID, and event type.
+Podspawn logs session events (create, connect, disconnect, destroy) to the audit log at `/var/log/podspawn/audit.jsonl`. Each line is a structured JSON entry with timestamp, user, project, container ID, and event type.
 
 ## Capacity planning
 
@@ -227,7 +227,7 @@ Podspawn writes to two log files:
 | Log | Path | Contents |
 |-----|------|----------|
 | Application log | `/var/log/podspawn/podspawn.log` | General operations, errors, debug output |
-| Audit log | `/var/log/podspawn/audit.log` | Session lifecycle events (structured JSON) |
+| Audit log | `/var/log/podspawn/audit.jsonl` | Session lifecycle events (structured JSON) |
 
 ### logrotate configuration
 
@@ -244,7 +244,7 @@ Create `/etc/logrotate.d/podspawn`:
     copytruncate
 }
 
-/var/log/podspawn/audit.log {
+/var/log/podspawn/audit.jsonl {
     weekly
     rotate 52
     compress

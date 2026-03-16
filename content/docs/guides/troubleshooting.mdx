@@ -172,7 +172,7 @@ docker system prune -a -f
 
 ### Max containers exceeded
 
-The server config (`/etc/podspawn/config.yaml`) has a `resources.max_containers` setting (default: 50). If you're running a lot of concurrent sessions, you may hit this limit.
+The server config (`/etc/podspawn/config.yaml`) has a `resources.max_per_user` setting (default: 3). Each user is limited to this many concurrent sessions. The error message will tell you the limit and suggest stopping an existing session.
 
 ```bash
 # Check how many podspawn containers are running
@@ -212,8 +212,8 @@ SSH is strict about file permissions. Key files and directories must not be worl
 
 ```bash
 # Fix key directory permissions
-sudo chmod 755 /etc/podspawn/keys
-sudo chmod 644 /etc/podspawn/keys/*
+sudo chmod 700 /etc/podspawn/keys
+sudo chmod 600 /etc/podspawn/keys/*
 
 # Fix client-side key permissions
 chmod 700 ~/.ssh
@@ -352,7 +352,7 @@ Tries to ping the Docker daemon via the socket.
 
 Checks that `/etc/podspawn/keys/` exists and has correct permissions.
 
-**If it fails:** Create it with `sudo mkdir -p /etc/podspawn/keys && sudo chmod 755 /etc/podspawn/keys`.
+**If it fails:** Create it with `sudo mkdir -p /etc/podspawn/keys && sudo chmod 700 /etc/podspawn/keys`.
 
 ### State database
 
