@@ -1,0 +1,234 @@
+---
+title: Admin Commands
+description: CLI reference for podspawn session management and monitoring commands
+---
+
+Admin commands help operators monitor sessions, stop containers, run cleanup, and check system health.
+
+## list
+
+Lists all active sessions tracked in the state database.
+
+```bash
+podspawn list
+```
+
+### Output format
+
+Tab-separated columns:
+
+| Column | Description |
+|--------|-------------|
+| USER | Username that owns the session |
+| PROJECT | Project name, or `(default)` for non-project sessions |
+| CONTAINER | Docker container name |
+| STATUS | `running` or `grace_period` |
+| CONNS | Number of active SSH connections to this session |
+| AGE | Time since session was created (e.g., `2h30m`, `45s`) |
+| LIFETIME LEFT | Time until max lifetime expires, or `expired` |
+
+### Example output
+
+```
+USER     PROJECT     CONTAINER                 STATUS        CONNS  AGE     LIFETIME LEFT
+alice    backend     podspawn-alice-backend    running       2      1h30m   6h30m
+bob      (default)   podspawn-bob              grace_period  0      45m     7h15m
+carol    frontend    podspawn-carol-frontend   running       1      5m      7h55m
+```
+
+When no sessions exist:
+
+```
+No active sessions.
+```
+
+---
+
+## stop
+
+Stops a session and destroys its container, companion services, and network.
+
+```bash
+podspawn stop <user[@project]>
+```
+
+### Argument format
+
+| Format | Meaning |
+|--------|---------|
+| `alice` | Stop alice's default (non-project) session |
+| `alice@backend` | Stop alice's session for the `backend` project |
+
+### What it destroys
+
+1. The session's Docker container
+2. All companion service containers (postgres, redis, etc.)
+3. The per-user Docker network
+4. The session record in the state database
+
+### Examples
+
+```bash
+# Stop alice's default session
+podspawn stop alice
+
+# Stop alice's backend project session
+podspawn stop alice@backend
+```
+
+### Output
+
+```
+Destroyed session: alice@backend (container podspawn-alice-backend)
+```
+
+If no active session exists for the given user/project:
+
+```
+Error: no active session for alice@backend
+```
+
+<Callout type="warn">
+This immediately destroys the container. Any unsaved work inside the container is lost. Connected SSH sessions will be terminated.
+</Callout>
+
+---
+
+## cleanup
+
+Reconciles orphaned containers and enforces time-to-live limits. Runs a single pass by default, or loops continuously in daemon mode.
+
+```bash
+podspawn cleanup [flags]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--daemon` | `false` | Run as a background cleanup daemon |
+| `--interval` | `60s` | Cleanup interval in daemon mode (Go duration format) |
+
+### What each cleanup pass does
+
+1. **Expire grace periods** -- finds sessions in `grace_period` status past their expiry time and destroys them
+2. **Enforce max lifetimes** -- finds sessions that have exceeded their configured max lifetime and destroys them (regardless of active connections)
+3. **Reconcile orphans** -- finds Docker containers labeled `managed-by=podspawn` that have no corresponding database record and removes them
+
+Grace periods are processed first so that max-lifetime enforcement doesn't attempt to destroy the same session twice.
+
+### Examples
+
+```bash
+# Single cleanup pass
+podspawn cleanup
+
+# Run as a daemon with default 60s interval
+podspawn cleanup --daemon
+
+# Custom interval
+podspawn cleanup --daemon --interval 30s
+```
+
+### Running as a systemd timer
+
+For production, a systemd timer is more reliable than `--daemon`:
+
+```ini
+# /etc/systemd/system/podspawn-cleanup.service
+[Unit]
+Description=Podspawn cleanup pass
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/podspawn cleanup
+```
+
+```ini
+# /etc/systemd/system/podspawn-cleanup.timer
+[Unit]
+Description=Run podspawn cleanup every minute
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=60s
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl enable --now podspawn-cleanup.timer
+```
+
+<Callout type="info">
+The cleanup command is not in the critical path. The system works without it, just with slightly delayed cleanup. Orphaned containers from crashes will be caught on the next pass.
+</Callout>
+
+---
+
+## status
+
+Shows system-level metrics about sessions and containers. Supports both human-readable and Prometheus exposition formats.
+
+```bash
+podspawn status [flags]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--prometheus` | `false` | Output in Prometheus exposition format |
+
+### Human-readable output
+
+```
+Sessions:    3 total (2 running, 1 grace)
+Connections: 4 active
+Containers:  3 in Docker
+Oldest:      2h30m
+```
+
+| Metric | Description |
+|--------|-------------|
+| Sessions | Total tracked sessions, broken down by running and grace period |
+| Connections | Sum of active SSH connections across all sessions |
+| Containers | Docker containers with the `managed-by=podspawn` label |
+| Oldest | Age of the longest-running session |
+
+### Prometheus output
+
+```bash
+podspawn status --prometheus
+```
+
+```
+# HELP podspawn_sessions_total Total tracked sessions
+# TYPE podspawn_sessions_total gauge
+podspawn_sessions_total 3
+# HELP podspawn_sessions_running Sessions in running state
+# TYPE podspawn_sessions_running gauge
+podspawn_sessions_running 2
+# HELP podspawn_sessions_grace Sessions in grace period
+# TYPE podspawn_sessions_grace gauge
+podspawn_sessions_grace 1
+# HELP podspawn_connections_total Total active SSH connections
+# TYPE podspawn_connections_total gauge
+podspawn_connections_total 4
+# HELP podspawn_containers_docker Docker containers with managed-by=podspawn
+# TYPE podspawn_containers_docker gauge
+podspawn_containers_docker 3
+# HELP podspawn_oldest_session_seconds Age of the oldest session in seconds
+# TYPE podspawn_oldest_session_seconds gauge
+podspawn_oldest_session_seconds 9000
+```
+
+### Monitoring integration
+
+Scrape the Prometheus output with a textfile collector or a cron job:
+
+```bash
+# Write metrics for node_exporter textfile collector
+podspawn status --prometheus > /var/lib/prometheus/node-exporter/podspawn.prom
+```

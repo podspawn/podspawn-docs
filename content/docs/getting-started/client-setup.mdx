@@ -1,0 +1,151 @@
+---
+title: Client Setup
+description: Configure the .pod namespace and multi-server routing
+---
+
+The podspawn client binary is optional. Without it, you SSH directly to your server's hostname and get a container. The client adds two things: the `.pod` namespace for friendly hostnames, and multi-server routing so `work.pod` and `gpu.pod` can point to different machines.
+
+## The .pod namespace
+
+Instead of remembering server hostnames:
+
+```bash
+ssh alice@devbox.company.com
+ssh alice@gpu-server.company.com
+```
+
+You type:
+
+```bash
+ssh alice@work.pod
+ssh alice@gpu.pod
+```
+
+The `.pod` suffix is not a real TLD -- it never hits DNS. Your SSH client's `ProxyCommand` intercepts it before resolution and routes to the real server.
+
+## Automatic setup
+
+```bash
+podspawn setup
+```
+
+This appends a block to `~/.ssh/config`:
+
+```bash
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+If the block already exists, `setup` skips it:
+
+```
+$ podspawn setup
+~/.ssh/config already has Host *.pod block, skipping
+```
+
+<Callout type="info">
+`setup` creates `~/.ssh/` and `~/.ssh/config` if they don't exist. It appends to the file -- it never overwrites existing config.
+</Callout>
+
+## Manual setup
+
+If you don't want to install the client binary, add this to `~/.ssh/config` yourself:
+
+```bash
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+You still need the `podspawn` binary in your `PATH` for the `ProxyCommand` to work.
+
+### Without the client binary at all
+
+Skip the `.pod` namespace entirely and SSH directly:
+
+```bash
+ssh alice@devbox.company.com
+```
+
+All SSH features work. You lose the friendly hostnames and multi-server routing, but nothing else.
+
+## Client configuration
+
+Create `~/.podspawn/config.yaml` to tell the `connect` command which server backs each `.pod` hostname:
+
+```yaml
+servers:
+  default: devbox.company.com
+  mappings:
+    work.pod: devbox.company.com
+    gpu.pod: gpu-server.company.com
+    personal.pod: my-homelab.ddns.net
+```
+
+### How routing works
+
+When you run `ssh alice@work.pod`:
+
+1. SSH matches `Host *.pod` and runs `podspawn connect alice work.pod 22`
+2. `connect` reads `~/.podspawn/config.yaml`
+3. It checks `servers.mappings` for `work.pod` -- finds `devbox.company.com`
+4. Opens a TCP connection to `devbox.company.com:22` and relays the SSH traffic
+
+If a `.pod` hostname isn't in `mappings`, the `default` server is used. If neither matches, `connect` exits with an error:
+
+```
+no server configured for "staging.pod" (add it to servers.mappings or set servers.default)
+```
+
+### Single-server shortcut
+
+If all your `.pod` hostnames point to one server, you only need `default`:
+
+```yaml
+servers:
+  default: devbox.company.com
+```
+
+Now `ssh alice@anything.pod` routes to `devbox.company.com`. The hostname before `.pod` is passed to the server as the project name -- so `work.pod` and `frontend.pod` still create separate containers.
+
+<Callout type="warn">
+The client config file must exist at `~/.podspawn/config.yaml` for `.pod` routing to work. Without it, `podspawn connect` fails with "client config not found."
+</Callout>
+
+## The project name
+
+The part before `.pod` is the project name. When you SSH to `backend.pod`, the server receives "backend" as the project identifier. The server uses this to:
+
+- Look up project-to-repo mappings in its config
+- Create separate containers per project (alice's `work.pod` and `backend.pod` are different containers)
+- Resolve Podfile environments from the mapped repository
+
+The `SetEnv PODSPAWN_PROJECT=%n` line in the SSH config block passes the full hostname (e.g., `backend.pod`) as an environment variable. The server's `AcceptEnv PODSPAWN_PROJECT` directive (added by `server-setup`) allows it through.
+
+## Verifying the setup
+
+```bash
+# Check SSH config
+grep -A5 "Host \*.pod" ~/.ssh/config
+
+# Check client config
+cat ~/.podspawn/config.yaml
+
+# Test the connection
+ssh alice@work.pod
+```
+
+## Next steps
+
+<Cards>
+  <Card title="Server Configuration" href="/docs/configuration" />
+  <Card title="Podfile Spec" href="/docs/podfile/overview" />
+  <Card title="Architecture" href="/docs/concepts/architecture" />
+</Cards>

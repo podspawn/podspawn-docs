@@ -1,0 +1,264 @@
+---
+title: AI Agent Environments
+description: Setting up disposable SSH environments for Claude Code, Cursor, Codex, and other AI coding agents
+---
+
+AI coding agents need disposable environments they can SSH into, run code, and throw away. They can't install desktop apps, navigate web UIs, or open IDEs. They can SSH.
+
+Podspawn is built for this use case. An agent SSHes in, gets a container with the repo, dependencies, and services running, does its work, exits, and the container self-destructs. No cleanup, no zombie processes, no billing surprises.
+
+## Why SSH-first matters for agents
+
+Every competitor in this space requires some combination of: a CLI tool installed on the agent's machine, a web UI interaction, an API call to a proprietary service, or a specific IDE integration. None of that works for headless agents.
+
+SSH is the universal interface. Every agent framework supports it. Every CI system supports it. Every programming language has SSH libraries. Podspawn turns that into a container platform.
+
+```bash
+# Agent receives a task
+ssh agent-run-4829@backend.pod
+
+# Agent is in a container with the repo, deps, and services
+# Write code, run tests, commit, push
+exit
+
+# Container and all companion services self-destruct
+```
+
+## Destroy-on-disconnect mode
+
+For agent workflows, you want zero grace period. The container should die the instant the SSH connection closes.
+
+Set the session mode in `/etc/podspawn/config.yaml`:
+
+```yaml
+session:
+  mode: "destroy-on-disconnect"
+  grace_period: "0s"
+  max_lifetime: "2h"     # safety net for hung agents
+```
+
+With `destroy-on-disconnect`:
+- Container is destroyed immediately when the last SSH connection closes
+- No grace period, no reconnect window
+- Companion services (databases, caches) are destroyed too
+- `max_lifetime` acts as a safety net for agents that hang or forget to exit
+
+## Setting up agent users
+
+Register a dedicated user for each agent (or agent run):
+
+```bash
+# Static agent user with a persistent key
+sudo podspawn add-user claude-agent --key-file /path/to/agent-key.pub
+
+# Or generate per-run users programmatically
+sudo podspawn add-user "agent-run-${RUN_ID}" --key "ssh-ed25519 AAAA..."
+```
+
+For ephemeral per-run users, clean up the key file after the run:
+
+```bash
+# After the agent finishes
+rm /etc/podspawn/keys/agent-run-${RUN_ID}
+```
+
+## Podfiles for agent workflows
+
+A Podfile defines exactly what the agent needs. Commit it to your repo and every agent run gets the same environment.
+
+```yaml
+# podfile.yaml
+base: ubuntu:24.04
+
+packages:
+  - nodejs@22
+  - python@3.12
+  - git
+  - curl
+
+shell: /bin/bash
+
+repos:
+  - url: github.com/company/backend
+    path: /workspace/backend
+    branch: main
+
+env:
+  CI: "true"
+  DATABASE_URL: "postgres://postgres:devpass@postgres:5432/dev"
+
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: dev
+
+on_create: |
+  cd /workspace/backend && npm install
+
+on_start: |
+  echo "Environment ready"
+```
+
+When the agent SSHes in, it gets:
+- The repo cloned at `/workspace/backend` with dependencies installed
+- A postgres instance running and reachable at `postgres:5432`
+- Environment variables pre-configured
+
+## Claude Code
+
+Claude Code connects via SSH and needs a shell, git, and the project's toolchain.
+
+### Setup
+
+1. Generate a key pair for the agent:
+   ```bash
+   ssh-keygen -t ed25519 -f /path/to/claude-agent-key -N ""
+   ```
+
+2. Register the user:
+   ```bash
+   sudo podspawn add-user claude-agent --key-file /path/to/claude-agent-key.pub
+   ```
+
+3. Configure the agent with the SSH connection:
+   ```
+   Host: yourserver.com
+   User: claude-agent
+   Key: /path/to/claude-agent-key
+   ```
+
+4. Claude Code SSHes in and gets a container with the project environment.
+
+### Recommended Podfile additions for Claude Code
+
+```yaml
+packages:
+  - git
+  - curl
+  - ripgrep          # Claude Code uses rg for code search
+  - tree             # directory structure inspection
+
+env:
+  EDITOR: "cat"      # prevents interactive editor prompts
+```
+
+## Cursor
+
+Cursor uses VS Code Remote SSH under the hood. It connects via SSH, syncs files via SFTP, and runs commands via exec channels. All of this works with podspawn.
+
+### Setup
+
+1. Register the user:
+   ```bash
+   sudo podspawn add-user cursor-agent --key-file /path/to/cursor-key.pub
+   ```
+
+2. In Cursor's SSH config, point to the podspawn server:
+   ```
+   Host dev-env
+       HostName yourserver.com
+       User cursor-agent
+       IdentityFile /path/to/cursor-key
+   ```
+
+3. Connect via Remote SSH. Cursor installs its server-side component automatically.
+
+<Callout type="info">
+With `destroy-on-disconnect`, Cursor's server component will be re-installed on each connection since the container is fresh. If this is too slow for your workflow, use `grace-period` mode with a short window (e.g., `300s`) to keep the container alive between reconnects.
+</Callout>
+
+## Codex
+
+OpenAI's Codex agent operates similarly. It needs SSH access and a shell.
+
+### Setup
+
+1. Register the user and generate keys (same as above)
+2. Point the Codex agent configuration at the SSH endpoint
+3. The agent SSHes in, gets a container, does its work, and exits
+
+## Per-run isolation
+
+For maximum isolation between agent runs, use per-run usernames:
+
+```bash
+#!/bin/bash
+# orchestrator script
+RUN_ID=$(uuidgen | head -c 8)
+USERNAME="agent-${RUN_ID}"
+
+# Generate ephemeral key pair
+ssh-keygen -t ed25519 -f "/tmp/${USERNAME}-key" -N "" -q
+
+# Register the user
+sudo podspawn add-user "${USERNAME}" --key-file "/tmp/${USERNAME}-key.pub"
+
+# Run the agent
+ssh -i "/tmp/${USERNAME}-key" "${USERNAME}@yourserver.com" << 'SCRIPT'
+cd /workspace
+npm test
+SCRIPT
+
+# Cleanup
+rm -f "/tmp/${USERNAME}-key" "/tmp/${USERNAME}-key.pub"
+sudo rm -f "/etc/podspawn/keys/${USERNAME}"
+```
+
+Each run gets a completely fresh container. No state leaks between runs. The key and user are cleaned up after.
+
+## Resource limits for agents
+
+Agents can be resource-hungry. Set limits to prevent any single agent from starving others:
+
+```yaml
+# /etc/podspawn/config.yaml
+defaults:
+  cpus: 2.0
+  memory: "4g"
+
+resources:
+  max_containers: 50
+  max_per_user: 3
+
+security:
+  pids_limit: 512
+```
+
+For specific agent users that need more resources, use per-user overrides:
+
+```yaml
+# /etc/podspawn/users/claude-agent.yaml
+cpus: 4.0
+memory: "8g"
+```
+
+## Monitoring agent usage
+
+Use `podspawn list` and `podspawn status` to monitor active agent sessions:
+
+```bash
+# See what's running
+podspawn list
+
+# System-level metrics
+podspawn status
+
+# Prometheus metrics for alerting
+podspawn status --prometheus
+```
+
+Set `max_lifetime` as a safety net. If an agent hangs, the container will be destroyed when the lifetime expires:
+
+```yaml
+session:
+  max_lifetime: "2h"
+```
+
+The cleanup daemon enforces this:
+
+```bash
+podspawn cleanup --daemon --interval 30s
+```

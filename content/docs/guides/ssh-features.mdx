@@ -1,0 +1,193 @@
+---
+title: SSH Features
+description: Complete guide to SSH features supported by podspawn, how each works, and any requirements
+---
+
+Because podspawn hooks into native sshd rather than reimplementing SSH, every SSH feature either works natively (zero code in podspawn) or requires minimal routing. This page covers each feature, how it works under the hood, and what your container image needs.
+
+## Feature matrix
+
+| Feature | Status | Handled by | Code in podspawn |
+|---------|--------|-----------|-----------------|
+| Interactive shell | Supported | Session router | ~30 lines (PTY, SIGWINCH) |
+| Remote commands | Supported | Session router | 0 (default exec path) |
+| SFTP | Supported | Session router | ~5 lines (detection) |
+| scp | Supported | Session router | 0 (default exec path) |
+| rsync over SSH | Supported | Session router | 0 (default exec path) |
+| Local port forwarding (`-L`) | Supported | sshd natively | 0 |
+| Remote port forwarding (`-R`) | Supported | sshd natively | 0 |
+| Dynamic forwarding / SOCKS (`-D`) | Supported | sshd natively | 0 |
+| Agent forwarding (`-A`) | Supported | sshd + bind mount | ~15 lines |
+| X11 forwarding | Supported | sshd natively | ~3 lines (env passthrough) |
+| Mosh | Not supported | N/A | N/A (requires UDP) |
+
+## Interactive shell
+
+When you run `ssh alice@work.pod` without a command, `SSH_ORIGINAL_COMMAND` is empty. Podspawn detects this and runs an interactive shell inside the container with a PTY attached.
+
+Terminal resize events (SIGWINCH) are forwarded to the container exec, so your terminal dimensions stay in sync as you resize your window.
+
+```bash
+ssh alice@work.pod
+# You're now in a bash shell inside the container
+```
+
+The shell used is configurable via `defaults.shell` in the server config (default: `/bin/bash`) or the `shell` field in a Podfile.
+
+## Remote commands
+
+Running a command via SSH sets `SSH_ORIGINAL_COMMAND` to that command. Podspawn passes it through to `sh -c` inside the container.
+
+```bash
+# Run a single command
+ssh alice@work.pod 'ls -la /workspace'
+
+# Pipe data through
+cat local-file.txt | ssh alice@work.pod 'cat > /workspace/file.txt'
+
+# Chain commands
+ssh alice@work.pod 'cd /workspace && make test'
+```
+
+Exit codes propagate correctly. If the command exits with code 42 inside the container, your local SSH client sees exit code 42. This matters for scripts and CI pipelines that check return values.
+
+## SFTP
+
+When SSH negotiates the SFTP subsystem, `SSH_ORIGINAL_COMMAND` contains the path to `sftp-server`. Podspawn detects this and runs `/usr/lib/openssh/sftp-server` inside the container.
+
+```bash
+# Interactive SFTP session
+sftp alice@work.pod
+
+# Direct file operations
+sftp alice@work.pod:/workspace/file.txt ./local-copy.txt
+```
+
+**Requirement:** The container image must have `sftp-server` installed. On Debian/Ubuntu:
+
+```bash
+apt-get install -y openssh-sftp-server
+```
+
+Run `podspawn verify-image <image>` to check. If sftp-server is missing, podspawn can inject a statically-compiled binary via bind-mount at startup.
+
+## scp
+
+scp sets `SSH_ORIGINAL_COMMAND` to something like `scp -t /path` or `scp -f /path`. Podspawn passes this through to `sh -c` inside the container, where scp's server-side component runs.
+
+```bash
+# Upload a file
+scp local-file.txt alice@work.pod:/workspace/
+
+# Download a file
+scp alice@work.pod:/workspace/output.log ./
+
+# Recursive copy
+scp -r ./project alice@work.pod:/workspace/project
+```
+
+**Requirement:** The container image must have `scp` installed (typically included with `openssh-client`).
+
+## rsync over SSH
+
+rsync uses SSH as its transport by default. The remote side receives `SSH_ORIGINAL_COMMAND` as `rsync --server ...`, which podspawn passes through.
+
+```bash
+# Sync a directory to the container
+rsync -avz ./src/ alice@work.pod:/workspace/src/
+
+# Sync from the container
+rsync -avz alice@work.pod:/workspace/build/ ./build/
+
+# With delete (mirror)
+rsync -avz --delete ./project/ alice@work.pod:/workspace/project/
+```
+
+**Requirement:** The container image must have `rsync` installed.
+
+## Local port forwarding (-L)
+
+sshd handles `direct-tcpip` channel requests at the protocol level, before the `ForceCommand` is invoked. No code in podspawn.
+
+```bash
+# Forward local port 8080 to port 3000 inside the SSH tunnel
+ssh -L 8080:localhost:3000 alice@work.pod
+
+# Access a companion service (e.g., postgres running in the session's network)
+ssh -L 5432:postgres:5432 alice@work.pod
+```
+
+<Callout type="info">
+Port forwarding connects to the container's network. If your Podfile defines companion services like postgres, you can forward to them by service name because they share the same Docker network.
+</Callout>
+
+## Remote port forwarding (-R)
+
+sshd handles `tcpip-forward` channel requests natively. A service running on the server (or in the container's network) can be exposed to your local machine.
+
+```bash
+# Expose the container's port 3000 on your local port 3000
+ssh -R 3000:localhost:3000 alice@work.pod
+```
+
+## Dynamic forwarding / SOCKS proxy (-D)
+
+sshd handles dynamic forwarding natively. This creates a SOCKS proxy through the SSH tunnel.
+
+```bash
+# Create a SOCKS5 proxy on local port 1080
+ssh -D 1080 alice@work.pod
+
+# Use with curl
+curl --proxy socks5h://localhost:1080 http://internal-service:8080
+```
+
+## Agent forwarding (-A)
+
+Agent forwarding lets you use your local SSH keys inside the container without copying them. sshd creates a socket on the server and sets `SSH_AUTH_SOCK`. Podspawn bind-mounts the socket directory into the container and passes the environment variable.
+
+```bash
+# Connect with agent forwarding
+ssh -A alice@work.pod
+
+# Inside the container, git operations use your local keys
+git clone git@github.com:company/private-repo.git
+```
+
+Each concurrent session gets a per-PID socket filename to avoid races. The socket path inside the container is `/run/ssh-agent/agent-<pid>.sock`.
+
+**Requirement:** Your local SSH agent must be running and have keys loaded (`ssh-add -l` to verify).
+
+## X11 forwarding
+
+sshd handles X11 forwarding at the protocol level. Podspawn passes the `DISPLAY` environment variable into the container.
+
+```bash
+ssh -X alice@work.pod
+# GUI applications launched inside the container display on your local screen
+```
+
+**Requirements:**
+- X11 server running on your local machine (XQuartz on macOS, X.Org on Linux)
+- `xauth` installed in the container image
+
+## Mosh
+
+Mosh is not supported. It requires UDP, which cannot be tunneled through SSH. This is a fundamental protocol limitation, not a podspawn limitation. All tools in this space (ContainerSSH, Coder, DevPod) have the same constraint.
+
+If you need resilient connections over unreliable networks, consider running `tmux` or `screen` inside the container. These survive network disconnects, and you can reattach on reconnect (within the grace period).
+
+## Container image requirements
+
+For full feature support, your container image should include:
+
+| Tool | Required for | Package (Debian/Ubuntu) |
+|------|-------------|------------------------|
+| bash (or another shell) | Interactive sessions | `bash` |
+| sftp-server | SFTP, VS Code Remote | `openssh-sftp-server` |
+| scp | scp transfers | `openssh-client` |
+| rsync | rsync transfers | `rsync` |
+| git | Agent forwarding (useful), repo cloning | `git` |
+| locales | Proper UTF-8 support | `locales` |
+
+Use `podspawn verify-image <image>` to check an image against these requirements.

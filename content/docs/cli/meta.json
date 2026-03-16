@@ -1,0 +1,5 @@
+{
+  "title": "CLI Reference",
+  "icon": "Terminal",
+  "pages": ["server-commands", "client-commands", "admin-commands"]
+}

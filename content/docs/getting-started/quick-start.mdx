@@ -1,0 +1,158 @@
+---
+title: Quick Start
+description: From zero to SSH-into-a-container in under five minutes
+---
+
+This walkthrough assumes you have a Linux server with Docker installed. You'll configure podspawn, register a user, and SSH into an ephemeral container.
+
+## 1. Install and configure the server
+
+```bash
+curl -sSf https://podspawn.dev/install.sh | sh
+sudo podspawn server-setup
+```
+
+`server-setup` does the following:
+1. Validates your current sshd config with `sshd -t`
+2. Backs up `/etc/ssh/sshd_config` to `/etc/ssh/sshd_config.podspawn.bak`
+3. Appends the `AuthorizedKeysCommand` and `AcceptEnv` directives
+4. Validates the new config with `sshd -t` (rolls back on failure)
+5. Creates `/etc/podspawn/`, `/etc/podspawn/keys/`, `/var/lib/podspawn/`, and the emergency key file
+6. Reloads sshd (existing sessions survive)
+
+```bash
+$ sudo podspawn server-setup
+backed up /etc/ssh/sshd_config to /etc/ssh/sshd_config.podspawn.bak
+appended AuthorizedKeysCommand to /etc/ssh/sshd_config
+reloaded ssh
+server-setup complete
+```
+
+<Callout type="info">
+`server-setup` is idempotent. Running it twice skips the sshd_config modification and prints "AuthorizedKeysCommand already configured."
+</Callout>
+
+<Callout type="warn">
+If another `AuthorizedKeysCommand` is already set in your sshd_config, `server-setup` will refuse to continue. Remove the existing one first or configure podspawn manually.
+</Callout>
+
+### Preview before committing
+
+If you want to see what `server-setup` would do without making changes:
+
+```bash
+sudo podspawn server-setup --dry-run
+```
+
+## 2. Register a user
+
+```bash
+# Import keys from GitHub
+sudo podspawn add-user alice --github alice
+
+# Or paste a key directly
+sudo podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
+
+# Or read from a file
+sudo podspawn add-user alice --key-file /path/to/id_ed25519.pub
+```
+
+You can combine sources and repeat flags:
+
+```bash
+sudo podspawn add-user alice \
+  --github alice \
+  --key-file /tmp/extra_key.pub
+```
+
+```bash
+$ sudo podspawn add-user alice --github alice
+added 2 key(s) for alice
+```
+
+Keys are stored at `/etc/podspawn/keys/alice`, one per line, standard `authorized_keys` format. No network calls happen at SSH auth time -- GitHub is only contacted during `add-user`.
+
+## 3. SSH in
+
+From any machine with the registered key:
+
+```bash
+ssh alice@yourserver.com
+```
+
+That's it. Podspawn intercepts the connection, creates a Docker container, and drops you into a shell. You're inside an ephemeral container, not on the host.
+
+```
+alice@podspawn-alice-abc123:~$ whoami
+alice
+alice@podspawn-alice-abc123:~$ cat /etc/os-release | head -2
+PRETTY_NAME="Ubuntu 24.04 LTS"
+NAME="Ubuntu"
+```
+
+## 4. Use SSH features normally
+
+Everything works because sshd handles the protocol -- podspawn only manages containers.
+
+```bash
+# Copy files in
+scp ./project.tar.gz alice@yourserver.com:/tmp/
+
+# SFTP
+sftp alice@yourserver.com
+
+# Port forwarding
+ssh -L 8080:localhost:3000 alice@yourserver.com
+
+# Run a command without a shell
+ssh alice@yourserver.com 'ls -la /workspace'
+```
+
+## 5. Exit and cleanup
+
+```bash
+alice@podspawn-alice-abc123:~$ exit
+```
+
+After you disconnect, a 60-second grace period starts. If you reconnect within that window, you get the same container. After the grace period expires, the container is destroyed.
+
+Multiple SSH sessions to the same server share one container. The container stays alive until the last session disconnects and the grace period expires.
+
+## What happened under the hood
+
+```
+ssh alice@yourserver.com
+  |
+  v
+sshd receives connection, calls: podspawn auth-keys alice
+  |
+  v
+podspawn reads /etc/podspawn/keys/alice, returns keys with:
+  command="podspawn spawn --user alice",restrict,pty,agent-forwarding,...
+  |
+  v
+Key matches -> sshd forces: podspawn spawn --user alice
+  |
+  v
+podspawn spawn checks SSH_ORIGINAL_COMMAND:
+  empty       -> interactive shell (docker exec -it)
+  sftp-server -> SFTP subsystem
+  scp/rsync   -> piped exec
+  anything    -> sh -c "command"
+  |
+  v
+Container created (or reattached), I/O piped through
+  |
+  v
+User exits -> grace period (60s) -> container destroyed
+```
+
+Real system users on the host are never affected. If `alice` isn't in podspawn's key store, `auth-keys` returns nothing and sshd falls through to normal `~/.ssh/authorized_keys` authentication.
+
+## Next steps
+
+<Cards>
+  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
+  <Card title="Configuration" href="/docs/configuration" />
+  <Card title="Podfile Spec" href="/docs/podfile/overview" />
+</Cards>

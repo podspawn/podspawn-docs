@@ -1,0 +1,136 @@
+---
+title: Security Configuration
+description: Container hardening options in SecurityConfig, including capability management, PID limits, read-only root, tmpfs mounts, and gVisor runtime.
+---
+
+The `security` section of `/etc/podspawn/config.yaml` controls how user containers are hardened. The defaults follow a "drop everything, re-add the minimum" philosophy.
+
+## Default security config
+
+```yaml
+security:
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN
+    - SETUID
+    - SETGID
+    - DAC_OVERRIDE
+    - FOWNER
+    - NET_BIND_SERVICE
+  no_new_privileges: true
+  pids_limit: 256
+  readonly_rootfs: false
+  tmpfs: {}
+  runtime: ""
+```
+
+## Fields
+
+### cap_drop
+
+**Type:** `[]string`
+**Default:** `["ALL"]`
+
+Linux capabilities to drop from the container. The default drops all capabilities, which is then selectively restored by `cap_add`. This follows the principle of least privilege.
+
+### cap_add
+
+**Type:** `[]string`
+**Default:** `["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "NET_BIND_SERVICE"]`
+
+Capabilities to add back after `cap_drop`. These are the minimum needed for typical development workflows:
+
+| Capability | Why it is needed |
+|------------|-----------------|
+| `CHOWN` | Changing file ownership inside the container. |
+| `SETUID` / `SETGID` | Running `su`, installing packages, and similar operations that switch user/group IDs. |
+| `DAC_OVERRIDE` | Bypassing file permission checks, needed for package managers that write to system directories. |
+| `FOWNER` | Modifying file attributes regardless of ownership. |
+| `NET_BIND_SERVICE` | Binding to ports below 1024 (e.g., running a dev server on port 80). |
+
+### no_new_privileges
+
+**Type:** `bool`
+**Default:** `true`
+
+When enabled, processes inside the container cannot gain new privileges via `setuid` binaries or capability inheritance. This blocks privilege escalation attacks.
+
+<Callout>
+Some development tools that rely on `setuid` binaries may not work with this enabled. If you hit permission errors from tools like `ping` or `sudo`, this is likely the cause. Disable it per-server only if you understand the trade-off.
+</Callout>
+
+### pids_limit
+
+**Type:** `int64`
+**Default:** `256`
+
+Maximum number of processes (including threads) that can run inside the container. This prevents fork bombs and runaway process spawning.
+
+For most development workloads, 256 is sufficient. Increase this if you run build systems that spawn many parallel processes (e.g., `make -j16`).
+
+### readonly_rootfs
+
+**Type:** `bool`
+**Default:** `false`
+
+When `true`, the container's root filesystem is mounted read-only. Package installation and any writes to system directories will fail unless you also configure `tmpfs` mounts for writable paths.
+
+This is useful for locked-down environments where the base image is pre-built with all required tools.
+
+### tmpfs
+
+**Type:** `map[string]string`
+**Default:** `{}` (empty)
+
+Tmpfs mounts to add to the container. Keys are mount paths inside the container, values are mount options.
+
+Commonly paired with `readonly_rootfs: true` to provide writable scratch space:
+
+```yaml
+security:
+  readonly_rootfs: true
+  tmpfs:
+    /tmp: "size=256m"
+    /run: "size=64m"
+    /var/tmp: "size=128m"
+```
+
+### runtime
+
+**Type:** `string`
+**Default:** `""` (empty, uses Docker's default runtime)
+
+OCI runtime for the container. Set to `runsc` to use [gVisor](https://gvisor.dev/), which provides an additional layer of kernel-level isolation by intercepting system calls.
+
+```yaml
+security:
+  runtime: runsc
+```
+
+<Callout>
+gVisor must be installed and registered with Docker before you can use it. See the [gVisor documentation](https://gvisor.dev/docs/user_guide/install/) for setup instructions. Not all workloads are compatible with gVisor; GPU access, for instance, has limited support.
+</Callout>
+
+## Example: locked-down server
+
+A production-grade configuration that maximizes isolation:
+
+```yaml
+security:
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN
+    - SETUID
+    - SETGID
+    - DAC_OVERRIDE
+    - FOWNER
+  no_new_privileges: true
+  pids_limit: 128
+  readonly_rootfs: true
+  tmpfs:
+    /tmp: "size=256m"
+    /run: "size=64m"
+  runtime: runsc
+```

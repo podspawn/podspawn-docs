@@ -1,0 +1,110 @@
+---
+title: Hooks
+description: Lifecycle hooks (on_create, on_start), dotfiles cloning, and repository cloning during container setup.
+---
+
+Podspawn runs setup tasks at specific points in a container's lifecycle. These include lifecycle hooks, dotfiles installation, and repository cloning.
+
+## Lifecycle hooks
+
+### on_create
+
+**Runs:** Once, when the container is first created.
+
+```yaml
+on_create: |
+  npm install
+  pip install -r requirements.txt
+  createdb myapp
+```
+
+Use this for one-time setup that should not repeat on reconnect: installing dependencies, creating databases, running migrations, building initial artifacts.
+
+### on_start
+
+**Runs:** Every time the container starts, including when reattaching to an existing session.
+
+```yaml
+on_start: echo "welcome back"
+```
+
+Use this for tasks that should run on every connection: starting background services, printing status messages, refreshing environment state.
+
+<Callout>
+Both hooks are executed with `sh -c` inside the container. A non-zero exit code is logged as a warning but does not prevent the session from starting. The container remains usable even if hooks fail.
+</Callout>
+
+## Execution order
+
+When a new container is created, the setup sequence is:
+
+1. Container created and started
+2. Service containers started (if any)
+3. Dotfiles cloned and install script run (if configured)
+4. Repositories cloned (if configured)
+5. `on_create` hook runs
+6. `on_start` hook runs
+
+On reattach to an existing container:
+
+1. `on_start` hook runs
+
+## Dotfiles
+
+The `dotfiles` field clones a git repository into `/root/dotfiles` inside the container and optionally runs an install script.
+
+```yaml
+dotfiles:
+  repo: https://github.com/youruser/dotfiles.git
+  install: ./install.sh
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `repo` | `string` | Git URL to clone. |
+| `install` | `string` | Command to run after cloning. Executed with `sh -c` from the `/root/dotfiles` directory. |
+
+The install command runs as:
+
+```sh
+cd /root/dotfiles && ./install.sh
+```
+
+If the clone fails, the error is returned and setup stops. If the install script exits non-zero, it is logged as a warning and setup continues.
+
+Dotfiles can also be configured in [user overrides](/docs/configuration/user-overrides), which lets each user bring their own dotfiles to any project.
+
+## Repository cloning
+
+The `repos` field clones one or more repositories into the container.
+
+```yaml
+repos:
+  - url: https://github.com/yourorg/backend.git
+    path: /workspace/backend
+    branch: main
+  - url: https://github.com/yourorg/frontend.git
+    path: /workspace/frontend
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | `string` | yes | Git URL of the repository. |
+| `path` | `string` | no | Clone destination inside the container. If omitted, Git picks the directory name from the URL. |
+| `branch` | `string` | no | Branch to check out. Cloned with `--single-branch` for faster downloads. If omitted, the repository's default branch is used. |
+
+<Callout>
+Repository cloning requires `git` to be available inside the container. If your base image does not include git, add it to the `packages` list.
+</Callout>
+
+## extra_commands
+
+The `extra_commands` field runs additional shell commands during container setup, after package installation and before lifecycle hooks.
+
+```yaml
+extra_commands:
+  - apt-get install -y libssl-dev
+  - ldconfig
+```
+
+Each entry is a separate command. Use this for setup steps that do not fit neatly into hooks or packages, like compiling a native extension or configuring system libraries.

@@ -1,0 +1,83 @@
+---
+title: User Overrides
+description: Per-user configuration via /etc/podspawn/users/<username>.yaml for customizing images, resources, shell, environment, and dotfiles.
+---
+
+User overrides let server admins customize container settings for individual users. Each override file lives at `/etc/podspawn/users/<username>.yaml`, where `<username>` matches the SSH username.
+
+If the file does not exist for a given user, no overrides are applied and the server defaults from `/etc/podspawn/config.yaml` are used.
+
+## Full example
+
+```yaml
+# /etc/podspawn/users/alice.yaml
+image: ubuntu:24.04
+cpus: 4.0
+memory: 8g
+shell: /bin/zsh
+env:
+  EDITOR: nvim
+  TERM: xterm-256color
+dotfiles:
+  repo: https://github.com/alice/dotfiles.git
+  install: ./install.sh
+```
+
+## Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | `string` | `""` (uses server default) | Docker image for this user's container. Overrides `defaults.image` from the server config. |
+| `cpus` | `float64` | `0` (uses server default) | CPU cores allocated to this user's container. Overrides `defaults.cpus`. |
+| `memory` | `string` | `""` (uses server default) | Memory limit. Accepts `g`/`m` suffixes. Overrides `defaults.memory`. |
+| `shell` | `string` | `""` (uses server default) | Login shell inside the container. Overrides `defaults.shell`. |
+| `env` | `map[string]string` | `{}` | Extra environment variables injected into the container. These are merged with (not replacing) any environment variables from the Podfile. |
+| `dotfiles` | `object` | `null` | Dotfiles repository to clone into the container on creation. |
+
+## dotfiles
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `repo` | `string` | `""` | Git URL of the dotfiles repository. Cloned into `/root/dotfiles` inside the container. |
+| `install` | `string` | `""` | Optional install command to run after cloning. Executed with `sh -c` from the `/root/dotfiles` directory. |
+
+<Callout>
+The install script runs as root inside the container. A non-zero exit code from the install script is logged as a warning but does not prevent the session from starting.
+</Callout>
+
+## Override precedence
+
+When multiple configuration layers specify the same field, the most specific one wins:
+
+1. **Podfile** (project-level) -- highest priority
+2. **User overrides** (this file)
+3. **Server defaults** (`/etc/podspawn/config.yaml`)
+
+For `env` variables specifically, all layers are merged. If the same key appears in multiple layers, the higher-priority layer wins.
+
+## Use cases
+
+**Power user with more resources:**
+
+```yaml
+# /etc/podspawn/users/bob.yaml
+cpus: 8.0
+memory: 16g
+```
+
+**User who needs a custom image:**
+
+```yaml
+# /etc/podspawn/users/carol.yaml
+image: ghcr.io/myorg/custom-dev:latest
+shell: /bin/zsh
+```
+
+**User with dotfiles automation:**
+
+```yaml
+# /etc/podspawn/users/dave.yaml
+dotfiles:
+  repo: https://github.com/dave/dotfiles.git
+  install: make install
+```

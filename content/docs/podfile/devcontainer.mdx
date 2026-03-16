@@ -1,0 +1,120 @@
+---
+title: devcontainer.json Fallback
+description: How podspawn converts devcontainer.json files to Podfile equivalents, including supported fields and conversion behavior.
+---
+
+If a project does not have a `podfile.yaml` but does have a `devcontainer.json`, podspawn will automatically convert it to an internal Podfile representation. This lets you use existing devcontainer configurations without rewriting them.
+
+## File search order
+
+Podspawn looks for devcontainer files in this order:
+
+1. `.devcontainer/devcontainer.json`
+2. `.devcontainer.json`
+
+The first match is used. This search only happens if no `podfile.yaml` was found.
+
+## Precedence
+
+When both a Podfile and a devcontainer.json exist in the same project:
+
+1. `podfile.yaml` (or `.podspawn/podfile.yaml`) -- used, devcontainer ignored
+2. `devcontainer.json` -- converted to Podfile internally
+3. Neither -- server defaults apply
+
+The Podfile always takes priority. There is no merging between the two formats.
+
+## Supported fields
+
+| devcontainer.json field | Podfile equivalent | Notes |
+|------------------------|-------------------|-------|
+| `image` | `base` | Falls back to `ubuntu:24.04` if empty. |
+| `containerEnv` | `env` | Merged with `remoteEnv`. |
+| `remoteEnv` | `env` | Merged with `containerEnv`. `remoteEnv` wins on key conflicts. |
+| `forwardPorts` | `ports.expose` | Direct mapping. |
+| `postCreateCommand` | `on_create` | Converted to a shell string. |
+| `postStartCommand` | `on_start` | Converted to a shell string. |
+| `features` | (recorded, not expanded) | Features are parsed but not fully processed. |
+| `remoteUser` | (parsed, not mapped) | Recognized but does not affect the Podfile output. |
+
+## JSONC support
+
+devcontainer.json files commonly use JSONC (JSON with Comments). Podspawn strips both line comments (`//`) and block comments (`/* */`) before parsing.
+
+```jsonc
+{
+  // Development container config
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "postCreateCommand": "npm install",
+  /* Forward the dev server port */
+  "forwardPorts": [3000]
+}
+```
+
+## Command conversion
+
+The `postCreateCommand` and `postStartCommand` fields in devcontainer.json accept three formats. Podspawn converts all of them to a single shell string:
+
+**String** -- used as-is:
+
+```json
+{ "postCreateCommand": "npm install && npm run build" }
+```
+
+**Array** -- joined with `&&`:
+
+```json
+{ "postCreateCommand": ["npm install", "npm run build"] }
+```
+
+Becomes: `npm install && npm run build`
+
+**Object (map)** -- values joined with `&&` in sorted key order:
+
+```json
+{
+  "postCreateCommand": {
+    "backend": "pip install -r requirements.txt",
+    "frontend": "npm install"
+  }
+}
+```
+
+Becomes: `pip install -r requirements.txt && npm install` (keys sorted alphabetically).
+
+<Callout>
+The conversion is lossy. Features, Docker Compose configurations, Dockerfile-based builds, and other advanced devcontainer capabilities are not supported. For full control, write a `podfile.yaml` instead.
+</Callout>
+
+## Example
+
+Given this `devcontainer.json`:
+
+```json
+{
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "containerEnv": {
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "remoteEnv": {
+    "EDITOR": "code"
+  },
+  "forwardPorts": [8000, 5432],
+  "postCreateCommand": "pip install -r requirements.txt",
+  "postStartCommand": "python manage.py migrate"
+}
+```
+
+Podspawn converts this internally to the equivalent of:
+
+```yaml
+base: mcr.microsoft.com/devcontainers/python:3.12
+shell: /bin/bash
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  EDITOR: code
+ports:
+  expose: [8000, 5432]
+on_create: pip install -r requirements.txt
+on_start: python manage.py migrate
+```

@@ -1,0 +1,5 @@
+{
+  "title": "Core Concepts",
+  "icon": "BookOpen",
+  "pages": ["architecture", "session-lifecycle", "auth-model", "networking"]
+}

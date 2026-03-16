@@ -1,0 +1,50 @@
+---
+title: Client Configuration
+description: Reference for ~/.podspawn/config.yaml, covering server routing with .pod hostnames.
+---
+
+The client configuration file lives at `~/.podspawn/config.yaml`. It tells the podspawn CLI how to resolve `.pod` hostnames to real server addresses.
+
+Unlike the server config, a missing client config file is an error since there are no useful defaults.
+
+## Full example
+
+```yaml
+servers:
+  default: dev.example.org:22
+  mappings:
+    work.pod: work-server.internal:2222
+    personal.pod: 192.168.1.50:22
+    staging.pod: staging.example.org:22
+```
+
+## servers
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `default` | `string` | (none, required) | Fallback server address for any `.pod` hostname that does not have a specific mapping. |
+| `mappings` | `map[string]string` | `{}` | Explicit hostname-to-server mappings. Keys are `.pod` hostnames, values are `host:port` addresses. |
+
+## How resolution works
+
+When you run `podspawn connect myproject.pod`, the client resolves the hostname in this order:
+
+1. If the hostname does not end in `.pod`, it passes through unchanged (treated as a direct address).
+2. If `servers.mappings` contains an exact match for the hostname, that server address is used.
+3. Otherwise, `servers.default` is used as the fallback.
+4. If neither a mapping nor a default exists, the connection fails with an error.
+
+<Callout>
+The `.pod` suffix is what triggers routing. Plain hostnames like `192.168.1.50` or `my-server.example.org` bypass the resolution logic entirely.
+</Callout>
+
+## Minimal config
+
+If you only have one podspawn server, you just need `default`:
+
+```yaml
+servers:
+  default: my-server.example.org:22
+```
+
+Every `.pod` hostname will route to that server.

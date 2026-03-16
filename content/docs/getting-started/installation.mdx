@@ -1,0 +1,94 @@
+---
+title: Installation
+description: Install podspawn on the server and optionally on client machines
+---
+
+## Requirements
+
+**Server:**
+- Linux (any distro with systemd)
+- Docker or a compatible container runtime
+- OpenSSH 7.4+ (for the `restrict` keyword in authorized_keys)
+- Root access for `server-setup`
+
+**Client:**
+- Any SSH client on any OS -- podspawn works without a client binary
+- Optional: the `podspawn` binary for `.pod` namespace routing
+
+<Callout type="info">
+OpenSSH 7.4 shipped in December 2016. If you're running anything remotely current, you have it. Check with `ssh -V`.
+</Callout>
+
+## Server install
+
+### One-liner
+
+```bash
+curl -sSf https://podspawn.dev/install.sh | sh
+```
+
+This downloads the correct binary for your architecture (linux/amd64 or linux/arm64) to `/usr/local/bin/podspawn`.
+
+### From source
+
+```bash
+go install github.com/podspawn/podspawn@latest
+```
+
+Requires Go 1.22+. The binary lands in `$GOPATH/bin`.
+
+### Package managers
+
+```bash
+# Debian/Ubuntu
+sudo apt install podspawn
+
+# RHEL/Fedora
+sudo dnf install podspawn
+```
+
+<Callout type="warn">
+Packages are published with each GitHub release via goreleaser. If your distro isn't listed, use the curl installer or build from source.
+</Callout>
+
+### Verify the install
+
+```bash
+podspawn version
+```
+
+## Client install (optional)
+
+The client binary enables the `.pod` namespace -- `ssh alice@work.pod` routing to the right server. Without it, you SSH directly to the server hostname and still get a container.
+
+```bash
+# macOS
+brew install podspawn/tap/podspawn
+
+# Linux
+curl -sSf https://podspawn.dev/install.sh | sh
+
+# From source
+go install github.com/podspawn/podspawn@latest
+```
+
+After installing, run `podspawn setup` to configure your SSH client. See [Client Setup](/docs/getting-started/client-setup) for details.
+
+## What gets installed
+
+| Path | Purpose |
+|---|---|
+| `/usr/local/bin/podspawn` | The binary (server and client are the same binary) |
+| `/etc/podspawn/` | Server config directory (created by `server-setup`) |
+| `/etc/podspawn/keys/` | Per-user SSH public key store |
+| `/etc/podspawn/config.yaml` | Server configuration |
+| `/etc/podspawn/emergency.keys` | Break-glass access keys |
+| `/var/lib/podspawn/` | State directory (SQLite database, lock files) |
+| `~/.podspawn/config.yaml` | Client configuration (client only) |
+
+## Next steps
+
+<Cards>
+  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
+</Cards>

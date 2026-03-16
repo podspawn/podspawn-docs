@@ -1,0 +1,117 @@
+---
+title: Server Configuration
+description: Reference for /etc/podspawn/config.yaml, covering authentication, defaults, session lifecycle, state, logging, security, and project routing.
+---
+
+The server configuration file lives at `/etc/podspawn/config.yaml`. If the file does not exist, podspawn uses built-in defaults for every field. Partial configs are fine; only the fields you specify override the defaults.
+
+## Full example
+
+```yaml
+auth:
+  key_dir: /etc/podspawn/keys
+
+defaults:
+  image: ubuntu:24.04
+  shell: /bin/bash
+  cpus: 2.0
+  memory: 2g
+
+session:
+  grace_period: 60s
+  max_lifetime: 8h
+  mode: grace-period
+
+state:
+  db_path: /var/lib/podspawn/state.db
+  lock_dir: /var/lib/podspawn/locks
+
+log:
+  file: ""
+  audit_log: ""
+
+security:
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN
+    - SETUID
+    - SETGID
+    - DAC_OVERRIDE
+    - FOWNER
+    - NET_BIND_SERVICE
+  no_new_privileges: true
+  pids_limit: 256
+  readonly_rootfs: false
+  tmpfs: {}
+  runtime: ""
+
+projects_file: /etc/podspawn/projects.yaml
+```
+
+## auth
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `key_dir` | `string` | `/etc/podspawn/keys` | Directory containing per-user SSH public key files. Each file is named after the user (e.g., `keys/alice`). Used by `AuthorizedKeysCommand` at SSH auth time. |
+
+## defaults
+
+Resource and environment defaults applied to every new container unless overridden by a user override or Podfile.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image` | `string` | `ubuntu:24.04` | Base Docker image for user containers. |
+| `shell` | `string` | `/bin/bash` | Default shell launched on SSH connect. |
+| `cpus` | `float64` | `2.0` | CPU cores allocated per container. |
+| `memory` | `string` | `2g` | Memory limit per container. Accepts `g`/`G` (gigabytes) and `m`/`M` (megabytes) suffixes. |
+
+## session
+
+Controls container lifecycle after a user disconnects.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `grace_period` | `string` | `60s` | How long to keep a container alive after the last SSH session disconnects. Must include a Go duration unit (e.g., `60s`, `5m`, `1h`). |
+| `max_lifetime` | `string` | `8h` | Maximum wall-clock lifetime for a container regardless of session activity. Same duration format as `grace_period`. |
+| `mode` | `string` | `grace-period` | Container teardown strategy. `grace-period` waits for the grace period after disconnect before removing the container. |
+
+<Callout>
+Both `grace_period` and `max_lifetime` are validated at load time. If either value is not a valid Go duration string, the config fails to load.
+</Callout>
+
+## state
+
+Paths for persistent state. These directories must be writable by the podspawn process.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `db_path` | `string` | `/var/lib/podspawn/state.db` | SQLite database tracking active sessions and containers. |
+| `lock_dir` | `string` | `/var/lib/podspawn/locks` | Directory for file-based locks that prevent concurrent mutations to the same user session. |
+
+## log
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `file` | `string` | `""` (empty) | Path to a structured log file. When empty, logs go to stderr. |
+| `audit_log` | `string` | `""` (empty) | Path to an audit-specific log file for security-relevant events. |
+
+## security
+
+Hardening options applied to every user container. See the dedicated [Security Configuration](/docs/configuration/security) page for details.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `cap_drop` | `[]string` | `["ALL"]` | Linux capabilities to drop. |
+| `cap_add` | `[]string` | `["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "NET_BIND_SERVICE"]` | Linux capabilities to re-add after dropping. |
+| `no_new_privileges` | `bool` | `true` | Sets the `no-new-privileges` security flag on the container. |
+| `pids_limit` | `int64` | `256` | Maximum number of processes inside the container. |
+| `readonly_rootfs` | `bool` | `false` | Mount the container root filesystem as read-only. |
+| `tmpfs` | `map[string]string` | `{}` | Tmpfs mounts to add. Keys are mount paths, values are mount options. |
+| `runtime` | `string` | `""` (empty) | OCI runtime name. Leave empty for the default Docker runtime, or set to `runsc` for gVisor. |
+
+## projects_file
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `projects_file` | `string` | `/etc/podspawn/projects.yaml` | Path to the project routing configuration file that maps project names to repository paths and Podfiles. |

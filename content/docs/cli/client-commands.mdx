@@ -1,0 +1,131 @@
+---
+title: Client Commands
+description: CLI reference for podspawn client-side commands that configure SSH routing
+---
+
+Client commands run on the developer's machine. They set up the `.pod` namespace routing so that `ssh alice@work.pod` reaches the right server and creates a container.
+
+The client binary is optional. Without it, users SSH directly to the server and still get containers. The client adds the `.pod` namespace magic and multi-server routing.
+
+## connect
+
+The `ProxyCommand` handler for `.pod` namespace routing. SSH calls this automatically when a hostname matches `*.pod` in `~/.ssh/config`. It resolves the `.pod` hostname to a real server address using the client config, then relays the TCP connection.
+
+```bash
+podspawn connect <user> <host> <port>
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `user` | SSH username (passed as `%r` by SSH) |
+| `host` | Hostname including `.pod` suffix (passed as `%h` by SSH) |
+| `port` | SSH port (passed as `%p` by SSH) |
+
+### How it works
+
+1. If the host ends in `.pod`, loads `~/.podspawn/config.yaml` to resolve the hostname
+2. Looks up the host in `servers.mappings` for a direct match
+3. Falls back to `servers.default` if no mapping exists
+4. Opens a TCP connection to the resolved address
+5. Relays stdin/stdout bidirectionally between SSH and the server
+
+If the host does not end in `.pod`, it connects directly (passthrough mode).
+
+### Client config
+
+The resolution relies on `~/.podspawn/config.yaml`:
+
+```yaml
+servers:
+  default: devbox.company.com
+  mappings:
+    work.pod: devbox.company.com
+    gpu.pod: gpu-server.company.com
+    personal.pod: my-homelab.ddns.net
+```
+
+With this config:
+- `ssh alice@work.pod` connects to `devbox.company.com:22`
+- `ssh alice@gpu.pod` connects to `gpu-server.company.com:22`
+- `ssh alice@anything-else.pod` connects to `devbox.company.com:22` (default)
+
+### SSH config integration
+
+This is the `~/.ssh/config` block that invokes `connect`:
+
+```
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+The `SetEnv`/`SendEnv` lines pass the `.pod` hostname to the server as an environment variable. The server uses this for project routing.
+
+`UserKnownHostsFile /dev/null` and `StrictHostKeyChecking no` are set because `.pod` hostnames are virtual. They all resolve to real servers whose host keys the user already trusts through normal SSH.
+
+<Callout type="info">
+The `connect` command is a thin TCP relay. It does not implement any SSH protocol logic. The actual SSH handshake happens between your SSH client and the server's sshd.
+</Callout>
+
+---
+
+## setup
+
+Configures the client's `~/.ssh/config` with the `Host *.pod` block. Creates the file and `~/.ssh/` directory if they don't exist.
+
+```bash
+podspawn setup
+```
+
+### What it does
+
+1. Checks if `~/.ssh/config` already has a `Host *.pod` block
+2. If present, prints a message and exits (idempotent)
+3. If absent, appends the block:
+
+```
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+### Examples
+
+```bash
+# First run
+$ podspawn setup
+added *.pod block to ~/.ssh/config
+
+# Second run (idempotent)
+$ podspawn setup
+~/.ssh/config already has Host *.pod block, skipping
+```
+
+### Manual alternative
+
+If you prefer not to install the client binary, add these lines to `~/.ssh/config` manually:
+
+```
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+Or skip the `.pod` namespace entirely and SSH directly:
+
+```bash
+ssh alice@devbox.company.com
+```
+
+You lose multi-server routing and the `.pod` naming, but all SSH features (SFTP, port forwarding, agent forwarding) work identically.

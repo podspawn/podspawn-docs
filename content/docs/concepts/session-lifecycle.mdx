@@ -1,0 +1,184 @@
+---
+title: Session Lifecycle
+description: How podspawn manages container lifetimes with reference-counted connections, grace periods, and reconciliation
+---
+
+A session in podspawn maps a `(user, project)` pair to a running container. When alice runs `ssh alice@work.pod`, podspawn either creates a new container or reattaches to an existing one. When she disconnects, the container enters a grace period. When the grace period expires, the container and all its companion services are destroyed.
+
+## Session state
+
+Sessions are tracked in SQLite at `/var/lib/podspawn/state.db`. The `state.Session` struct in `internal/state/state.go` holds:
+
+| Field | Purpose |
+|---|---|
+| `User` + `Project` | Composite primary key. `work.pod` and `playground.pod` create separate sessions for the same user. |
+| `ContainerID` / `ContainerName` | Docker container identifiers. Name follows `podspawn-<user>-<project>` pattern. |
+| `Status` | `running` or `grace_period` |
+| `Connections` | Reference count of active SSH sessions attached to this container |
+| `GraceExpiry` | When the grace period ends (null when status is `running`) |
+| `MaxLifetime` | Hard deadline regardless of activity |
+| `NetworkID` | Per-user Docker bridge network |
+| `ServiceIDs` | Comma-separated companion service container IDs |
+
+The database uses WAL mode and a 5-second busy timeout for concurrent access:
+
+```sql
+PRAGMA journal_mode=WAL;
+PRAGMA busy_timeout=5000;
+```
+
+## The connect flow
+
+When `podspawn spawn` runs, `ensureContainerWithState` in `internal/spawn/spawn.go` executes under an exclusive per-user file lock:
+
+```
+podspawn spawn --user alice --project work
+    |
+    v
+Acquire flock: /var/lib/podspawn/locks/alice.lock
+    |
+    v
+Reconcile stale state (crash recovery)
+    |
+    v
+Session exists in DB?
+    |
+    +-- YES, container alive?
+    |       +-- YES, in grace period?
+    |       |       +-- YES --> cancel grace period, increment connections
+    |       |       +-- NO  --> increment connections
+    |       +-- NO  --> delete stale session record, fall through
+    |
+    +-- NO --> create network, resolve project/podfile, create container,
+              start container, insert session record
+    |
+    v
+Release lock
+    |
+    v
+Run hooks (on_create for new, on_start for all)
+    |
+    v
+Route session (interactive shell / SFTP / command)
+```
+
+The file lock at `/var/lib/podspawn/locks/<username>.lock` prevents the check-then-create race: two SSH sessions arriving simultaneously for the same user both see "no container" and both try to create one. The lock serializes them so the second session reattaches to the container the first one created.
+
+<Callout type="info">
+Locks are per-user, not global. Alice's lock never blocks Bob's session creation. The lock implementation uses `syscall.Flock` in `internal/lock/lock.go`, which works across processes on the same host.
+</Callout>
+
+## Reference-counted connections
+
+Multiple SSH sessions to the same `(user, project)` share one container. The `Connections` field tracks how many:
+
+```
+Terminal 1: ssh alice@work.pod   --> connections = 1
+Terminal 2: ssh alice@work.pod   --> connections = 2
+Terminal 1: exit                 --> connections = 1 (container stays)
+Terminal 2: exit                 --> connections = 0 (grace period starts)
+```
+
+Each `UpdateConnections` call is atomic -- a single SQL statement with `RETURNING`:
+
+```sql
+UPDATE sessions SET connections = MAX(0, connections + ?), last_activity = ?
+WHERE user = ? AND project = ? RETURNING connections;
+```
+
+The `MAX(0, ...)` guard prevents the count from going negative if something goes wrong.
+
+## The disconnect flow
+
+`Session.Disconnect` in `internal/spawn/spawn.go` handles teardown:
+
+```
+User exits SSH session
+    |
+    v
+Acquire flock
+    |
+    v
+Decrement connections
+    |
+    v
+connections > 0?
+    +-- YES --> done, other sessions still active
+    +-- NO  --> check mode
+                |
+                +-- destroy-on-disconnect (or grace_period = 0)
+                |       --> remove container + services + network, delete session
+                |
+                +-- grace-period
+                        --> set status = "grace_period", grace_expiry = now + duration
+```
+
+`RunAndCleanup` wraps the full lifecycle: run the session, then call `Disconnect` with a 10-second timeout context for cleanup.
+
+## Grace periods
+
+The default grace period is 60 seconds, configured at `session.grace_period` in `/etc/podspawn/config.yaml`. During this window:
+
+- The container keeps running
+- A new SSH connection cancels the grace period and reattaches
+- Network blips, accidental disconnects, and SSH reconnects all land back in the same container
+
+When the grace period expires, the container and all companion services are destroyed. Expiry is enforced in two ways:
+
+1. **On next connect** -- `reconcileUser` checks if the grace period has passed and cleans up before creating a new container
+2. **By the cleanup daemon** -- `podspawn cleanup --daemon` polls `ExpiredGracePeriods()` every 60 seconds and removes expired sessions
+
+## Destroy-on-disconnect mode
+
+For CI pipelines and AI agents that need immediate cleanup, set `session.mode: "destroy-on-disconnect"` in config. This sets zero grace period -- the container is removed the instant the last connection drops.
+
+Alternatively, set `session.grace_period: "0s"` with any mode for the same effect.
+
+## Max lifetimes
+
+Every session has a hard deadline: `max_lifetime` (default 8 hours). When `time.Now()` passes `MaxLifetime`, the session is eligible for destruction regardless of active connections or grace period status.
+
+The cleanup daemon enforces this via `ExpiredLifetimes()`:
+
+```sql
+SELECT ... FROM sessions WHERE max_lifetime < ?
+```
+
+This prevents zombie containers from users who leave SSH sessions open indefinitely.
+
+## Reconciliation
+
+Podspawn is self-healing. On every `spawn` invocation, `reconcileUser` checks for two kinds of stale state:
+
+1. **Stale zero-connection sessions** -- `connections = 0` with no grace expiry set. This happens when podspawn crashes between decrementing the connection count and setting the grace period. The `StaleZeroConnections` query catches these.
+
+2. **Expired grace periods** -- sessions where `grace_expiry` has passed. If the cleanup daemon isn't running, the next connection triggers cleanup.
+
+If a container exists in the DB but Docker reports it gone, the session record is deleted. If a container exists in Docker with `managed-by=podspawn` labels but not in the DB, `podspawn cleanup` destroys it.
+
+## Session destruction
+
+When a session is destroyed (grace expiry, max lifetime, or destroy-on-disconnect), cleanup is atomic in `cleanupSessionResources`:
+
+1. Remove the dev container (`RemoveContainer` with force)
+2. Stop and remove all companion service containers (postgres, redis, etc.)
+3. Remove the per-user Docker network
+
+If any step fails, the next `spawn` invocation's reconciliation catches the orphan. No manual intervention needed.
+
+## Configuration reference
+
+```yaml
+# /etc/podspawn/config.yaml
+session:
+  grace_period: "60s"       # how long containers survive after last disconnect
+  max_lifetime: "8h"        # hard limit regardless of activity
+  mode: "grace-period"      # "grace-period" | "destroy-on-disconnect"
+```
+
+## Session modes summary
+
+| Mode | Grace period | Use case |
+|---|---|---|
+| `grace-period` (default) | Configurable, default 60s | Human developers -- survives network blips |
+| `destroy-on-disconnect` | Zero | CI, AI agents -- immediate cleanup, no billing surprises |

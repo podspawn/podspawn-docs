@@ -1,13 +1,48 @@
 ---
-title: Hello World
-description: Your first document
+title: Introduction
+description: Ephemeral SSH dev containers via native sshd
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+Podspawn is a single Go binary that hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full ephemeral container platform.
 
-## What is Next?
+## The core insight
+
+You don't need a custom SSH server. Every existing tool in this space -- ContainerSSH, Coder, DevPod -- builds or embeds its own SSH daemon. Podspawn takes a fundamentally different approach: it lets OpenSSH handle the protocol and focuses exclusively on container lifecycle.
+
+```
+ssh alice@work.pod  ->  container created  ->  work  ->  exit  ->  container destroyed
+```
+
+## What makes it different
+
+- **Native sshd integration** -- not a replacement, an extension. Two lines of config, every SSH feature works.
+- **Podfile environments** -- declarative YAML for dev environments with packages, companion services, dotfiles, and lifecycle hooks.
+- **Security by default** -- cap-drop ALL, no-new-privileges, PID limits, per-user network isolation, optional gVisor.
+- **AI agent ready** -- disposable environments for autonomous coding agents. SSH in, run tests, exit. No cleanup.
+
+## Quick start
+
+```bash
+# Server setup (30 seconds)
+curl -sSf https://podspawn.dev/install.sh | sh
+sudo podspawn server-setup
+sudo podspawn add-user alice --github alice
+
+# Client (any SSH client works)
+ssh alice@yourserver.com
+```
+
+## Architecture at a glance
+
+Podspawn consists of two paths:
+
+**Server side** -- sshd invokes `podspawn auth-keys` to check if a user is a container user. If yes, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates/reattaches a Docker container and pipes I/O.
+
+**Client side** -- an optional `ProxyCommand` entry in `~/.ssh/config` creates a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container.
 
 <Cards>
-  <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="Architecture" href="/docs/concepts/architecture" />
+  <Card title="Podfile Spec" href="/docs/podfile/overview" />
 </Cards>

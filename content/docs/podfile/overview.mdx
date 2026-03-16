@@ -1,0 +1,174 @@
+---
+title: Podfile Overview
+description: What Podfiles are, where they live, and a complete reference of every field in podfile.yaml.
+---
+
+A Podfile is a declarative YAML file that defines a project's development environment. It specifies the base image, packages, services, environment variables, lifecycle hooks, and resource limits for the container that podspawn creates when you connect.
+
+## File locations
+
+Podspawn searches for a Podfile in the following order:
+
+1. `.podspawn/podfile.yaml` (inside a `.podspawn` directory)
+2. `podfile.yaml` (project root)
+
+The first match wins. If neither is found, podspawn falls back to a `devcontainer.json` if one exists (see [devcontainer fallback](/docs/podfile/devcontainer)), or uses the server defaults.
+
+## Full spec
+
+```yaml
+base: ubuntu:24.04
+
+packages:
+  - git
+  - curl
+  - jq
+  - nodejs@22
+  - python@3.12
+  - go@1.22
+  - rust
+
+shell: /bin/zsh
+
+env:
+  EDITOR: nvim
+  NODE_ENV: development
+
+dotfiles:
+  repo: https://github.com/youruser/dotfiles.git
+  install: ./install.sh
+
+repos:
+  - url: https://github.com/yourorg/backend.git
+    path: /workspace/backend
+    branch: main
+  - url: https://github.com/yourorg/frontend.git
+    path: /workspace/frontend
+
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: app
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  - name: redis
+    image: redis:7
+    ports: [6379]
+
+ports:
+  expose: [3000, 8080]
+
+resources:
+  cpus: 4.0
+  memory: 8g
+
+on_create: |
+  npm install
+  pip install -r requirements.txt
+
+on_start: echo "ready"
+
+extra_commands:
+  - apt-get install -y libssl-dev
+  - ldconfig
+```
+
+## Field reference
+
+### base
+
+**Type:** `string`
+**Default:** Uses `defaults.image` from server config (`ubuntu:24.04`)
+
+The Docker image to use as the container base. Any valid Docker image reference works.
+
+### packages
+
+**Type:** `[]string`
+
+Packages to install in the container. Plain names are installed via `apt-get`. Versioned packages use the `name@version` syntax. See [Packages](/docs/podfile/packages) for the full version map.
+
+### shell
+
+**Type:** `string`
+**Default:** Uses `defaults.shell` from server config (`/bin/bash`)
+
+The shell to launch when a user connects via SSH.
+
+### env
+
+**Type:** `map[string]string`
+
+Environment variables set inside the container. These are merged with variables from user overrides and the server config.
+
+### dotfiles
+
+**Type:** `object`
+
+| Sub-field | Type | Description |
+|-----------|------|-------------|
+| `repo` | `string` | Git URL to clone into `/root/dotfiles`. |
+| `install` | `string` | Command to run after cloning, executed from the dotfiles directory. |
+
+See [Hooks](/docs/podfile/hooks) for details on execution behavior.
+
+### repos
+
+**Type:** `[]object`
+
+Repositories to clone into the container on creation.
+
+| Sub-field | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | `string` | yes | Git URL of the repository. |
+| `path` | `string` | no | Where to clone inside the container. If omitted, Git's default naming is used. |
+| `branch` | `string` | no | Branch to check out. Cloned with `--single-branch`. If omitted, the default branch is used. |
+
+### services
+
+**Type:** `[]object`
+
+Companion service containers (databases, caches, etc.) started alongside the main container. See [Services](/docs/podfile/services) for details.
+
+### ports
+
+**Type:** `object`
+
+| Sub-field | Type | Description |
+|-----------|------|-------------|
+| `expose` | `[]int` | Ports to expose from the container. |
+
+### resources
+
+**Type:** `object`
+
+| Sub-field | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cpus` | `float64` | Server default (`2.0`) | CPU cores allocated to the container. |
+| `memory` | `string` | Server default (`2g`) | Memory limit. Accepts `g`/`m` suffixes. |
+
+### on_create
+
+**Type:** `string`
+
+Shell command(s) run once when the container is first created. Executed with `sh -c`. See [Hooks](/docs/podfile/hooks).
+
+### on_start
+
+**Type:** `string`
+
+Shell command(s) run every time the container starts (including reattach). Executed with `sh -c`. See [Hooks](/docs/podfile/hooks).
+
+### extra_commands
+
+**Type:** `[]string`
+
+Additional shell commands run during container setup. These run after package installation and before lifecycle hooks.
+
+<Callout>
+A non-zero exit code from `on_create` or `on_start` hooks is logged as a warning but does not prevent the session from starting. The container is still usable.
+</Callout>

@@ -1,0 +1,197 @@
+---
+title: IDE Integration
+description: Using VS Code Remote SSH, JetBrains Gateway, and Cursor Remote with podspawn
+---
+
+Because podspawn provides a real SSH connection to a real Linux container, remote IDE features work without any special integration. The IDE connects via SSH, syncs files via SFTP, runs commands via exec channels, and forwards ports. Podspawn handles all of this through the standard session router.
+
+## How IDEs use SSH
+
+All remote IDEs follow the same pattern:
+
+1. **SFTP** for file synchronization (reading/writing files on the remote)
+2. **Exec channels** for running commands (build, test, language servers)
+3. **Port forwarding** for accessing dev servers and debuggers
+
+Podspawn's session router handles each of these as separate SSH sessions to the same container. The connection reference count tracks them all, so the container stays alive as long as the IDE has any active connection.
+
+## VS Code Remote SSH
+
+VS Code Remote SSH is fully supported. No special configuration needed.
+
+### Setup
+
+1. Install the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh) extension in VS Code.
+
+2. Add the host to your SSH config. If you've run `podspawn setup`, the `.pod` namespace is already configured. Otherwise, add the server directly:
+
+   ```
+   Host dev-container
+       HostName yourserver.com
+       User alice
+       IdentityFile ~/.ssh/id_ed25519
+   ```
+
+3. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), select **Remote-SSH: Connect to Host**, and choose your host.
+
+4. VS Code connects, installs its server component inside the container, and opens a remote window.
+
+### Using the .pod namespace
+
+With the client configured, you can connect to project-specific containers:
+
+```
+Host backend.pod
+    # Inherits from the *.pod block added by podspawn setup
+```
+
+In VS Code, connect to `alice@backend.pod`. You'll land in a container built from the backend project's Podfile.
+
+### What happens on connect
+
+1. VS Code opens an SSH connection (triggers container creation)
+2. VS Code uploads and installs `vscode-server` inside the container via SFTP + exec
+3. Extensions are installed inside the container
+4. The terminal, file explorer, and language features all run inside the container
+
+### Port forwarding
+
+VS Code automatically forwards ports when it detects a service listening inside the container. You can also forward manually via the **Ports** panel. This uses SSH local port forwarding (`-L`), which sshd handles natively.
+
+### Reconnecting
+
+If you disconnect and reconnect within the grace period (default: 60s), VS Code reattaches to the same container with its server component still running. No reinstallation needed.
+
+<Callout type="info">
+If you use `destroy-on-disconnect` mode (for CI or agent workflows), VS Code's server component will be reinstalled on every connection. For interactive development, use `grace-period` mode.
+</Callout>
+
+## JetBrains Gateway
+
+JetBrains Gateway connects to remote environments via SSH and runs a headless IDE backend inside the container.
+
+### Setup
+
+1. Open JetBrains Gateway and select **SSH Connection**.
+
+2. Configure the connection:
+   - **Host**: `yourserver.com` (or `backend.pod` if using the `.pod` namespace)
+   - **User**: `alice`
+   - **Authentication**: Key-based, pointing to your SSH key
+
+3. Gateway connects and offers to install the IDE backend (IntelliJ, GoLand, PyCharm, etc.) inside the container.
+
+4. The IDE backend runs inside the container. The Gateway client on your machine renders the UI.
+
+### How it works with podspawn
+
+Gateway uses the same SSH primitives as VS Code:
+- SFTP for file sync and IDE backend upload
+- Exec channels for running the IDE backend process
+- Port forwarding for the IDE's communication channel
+
+All of these are handled by podspawn's session router without any special configuration.
+
+### Project-specific environments
+
+Configure Gateway to connect to project containers:
+
+```
+Host backend.pod
+    User alice
+```
+
+Each project's Podfile can include the language toolchain the IDE needs:
+
+```yaml
+# podfile.yaml for a Go project
+base: ubuntu:24.04
+
+packages:
+  - go@1.22
+  - gopls          # Go language server
+  - git
+```
+
+GoLand (via Gateway) connects, finds Go and gopls installed, and provides full IDE features.
+
+### Persistent settings
+
+JetBrains Gateway stores IDE settings and indexes inside the container. If the container is destroyed, these are rebuilt on next connection. For faster reconnects, use `grace-period` mode.
+
+## Cursor Remote
+
+Cursor is a fork of VS Code with AI features built in. Its remote SSH integration works identically to VS Code Remote SSH.
+
+### Setup
+
+1. Open Cursor's Command Palette and select **Remote-SSH: Connect to Host**.
+
+2. If you've run `podspawn setup`, connect to `alice@work.pod` directly.
+
+3. Cursor connects, installs its server component, and opens a remote window with full AI features.
+
+### Cursor-specific considerations
+
+Cursor's AI features (autocomplete, chat, edits) run partially on the server side. The container needs network access for Cursor's AI backend communication. The default podspawn network configuration allows outbound connections, so this works without changes.
+
+If you've restricted outbound network access, ensure the container can reach Cursor's API endpoints.
+
+## Feature support matrix
+
+| Feature | VS Code Remote | JetBrains Gateway | Cursor Remote |
+|---------|---------------|-------------------|---------------|
+| File editing | Yes | Yes | Yes |
+| Terminal | Yes | Yes | Yes |
+| Language servers | Yes | Yes | Yes |
+| Debugging | Yes | Yes | Yes |
+| Port forwarding | Yes (automatic) | Yes | Yes (automatic) |
+| Extensions/plugins | Install in container | Install in container | Install in container |
+| Git integration | Yes | Yes | Yes |
+| Agent forwarding | Yes (with `-A`) | Yes | Yes (with `-A`) |
+| .pod namespace | Yes | Yes | Yes |
+| Reconnect to same container | Yes (within grace period) | Yes (within grace period) | Yes (within grace period) |
+
+## Tips
+
+### Use Podfiles to pre-install tooling
+
+Instead of waiting for the IDE to install language servers on every connection, include them in your Podfile:
+
+```yaml
+packages:
+  - nodejs@22
+  - typescript-language-server
+  - python@3.12
+  - python-lsp-server
+  - go@1.22
+  - gopls
+```
+
+### Grace period for interactive use
+
+Set a reasonable grace period so brief disconnects (network hiccups, laptop sleep) don't destroy your environment:
+
+```yaml
+session:
+  mode: "grace-period"
+  grace_period: "300s"    # 5 minutes
+  max_lifetime: "8h"
+```
+
+### Agent forwarding for git
+
+If you push/pull from private repos inside the container, connect with agent forwarding:
+
+```bash
+ssh -A alice@work.pod
+```
+
+Or add it to your SSH config:
+
+```
+Host *.pod
+    ForwardAgent yes
+```
+
+This makes your local SSH keys available inside the container without copying them.

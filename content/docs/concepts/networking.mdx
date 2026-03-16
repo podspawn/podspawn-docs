@@ -1,0 +1,163 @@
+---
+title: Networking
+description: Per-user bridge networks, companion service DNS, container isolation, and how port forwarding works through sshd
+---
+
+Podspawn creates isolated Docker networks per user session. Containers cannot talk to other users' containers. Companion services (postgres, redis) are reachable by name within a session. Port forwarding works natively through sshd with zero code in podspawn.
+
+## Per-user bridge networks
+
+Every session gets its own Docker bridge network. The network name follows the pattern `podspawn-<user>-<project>-net` (or `podspawn-<user>-net` for sessions without a project). The `userNetworkName` method in `internal/spawn/spawn.go` generates it:
+
+```
+alice + work project   --> podspawn-alice-work-net
+alice + no project     --> podspawn-alice-net
+bob   + work project   --> podspawn-bob-work-net
+```
+
+The network is created via `Runtime.CreateNetwork` in `internal/runtime/docker.go`, which calls Docker's network API with the `bridge` driver and a `managed-by: podspawn` label:
+
+```go
+resp, err := d.cli.NetworkCreate(ctx, name, network.CreateOptions{
+    Driver: "bridge",
+    Labels: map[string]string{"managed-by": "podspawn"},
+})
+```
+
+If the network already exists (from a previous crash), the existing network is reused rather than failing.
+
+## Why not the default bridge
+
+Docker's default bridge network allows all containers to communicate by IP. On a multi-tenant podspawn server, this means alice's container could reach bob's postgres. Per-user networks prevent this:
+
+```
+podspawn-alice-work-net          podspawn-bob-work-net
++---------------------------+    +---------------------------+
+| alice's dev container     |    | bob's dev container       |
+| alice's postgres          |    | bob's postgres            |
+| alice's redis             |    | bob's redis               |
++---------------------------+    +---------------------------+
+        (isolated)                       (isolated)
+```
+
+Containers on different networks cannot reach each other at the Docker networking level. No firewall rules needed.
+
+## Companion service DNS
+
+When a Podfile defines companion services, they are started on the same network as the dev container. Docker's embedded DNS resolves service names automatically:
+
+```yaml
+# podfile.yaml
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+
+  - name: redis
+    image: redis:7
+    ports: [6379]
+```
+
+Inside the dev container, `postgres` and `redis` resolve to their respective container IPs:
+
+```bash
+# From inside the dev container
+psql -h postgres -U postgres    # works -- DNS resolves "postgres"
+redis-cli -h redis              # works -- DNS resolves "redis"
+```
+
+This works because `CreateContainer` in `internal/runtime/docker.go` attaches the container to the network with a DNS alias matching the container name:
+
+```go
+networkCfg = &network.NetworkingConfig{
+    EndpointsConfig: map[string]*network.EndpointSettings{
+        opts.NetworkID: {
+            Aliases: []string{opts.NetworkName},
+        },
+    },
+}
+```
+
+Service containers get aliases matching their service name. The dev container gets an alias matching `podspawn-<user>-<project>`.
+
+<Callout type="info">
+Companion services share the session lifecycle. When the session is destroyed (grace period expires, max lifetime hit, or destroy-on-disconnect), all service containers are stopped and the network is removed. See [Session Lifecycle](/docs/concepts/session-lifecycle) for the full cleanup flow.
+</Callout>
+
+## Port forwarding through sshd
+
+SSH port forwarding works with zero code in podspawn. This is a direct benefit of the native sshd integration model.
+
+### Local forwarding (`-L`)
+
+```bash
+ssh -L 8080:localhost:3000 alice@work.pod
+```
+
+sshd handles `direct-tcpip` channel requests at the protocol level, before the `command=` directive runs. The forwarded port connects to `localhost:3000` inside the SSH session's network context.
+
+Since the dev container runs on a bridge network, "localhost" from sshd's perspective is the host machine. To reach a port inside the container, the container must expose it or the user can forward through the container's network:
+
+```bash
+# Forward host port 8080 to port 3000 inside the container's network
+ssh -L 8080:podspawn-alice-work:3000 alice@work.pod
+```
+
+### Remote forwarding (`-R`)
+
+```bash
+ssh -R 9090:localhost:3000 alice@work.pod
+```
+
+sshd handles `tcpip-forward` requests natively. This makes a port on the server accessible that tunnels back to the client's local port 3000. Useful for exposing local dev servers to the container environment.
+
+### SOCKS proxy (`-D`)
+
+```bash
+ssh -D 1080 alice@work.pod
+```
+
+Dynamic forwarding is handled entirely by sshd. Podspawn does nothing.
+
+### Why port forwarding is free
+
+The `command=` directive in authorized_keys applies to shell, command, and subsystem execution. It does not affect SSH channel operations like port forwarding. sshd processes `direct-tcpip` and `tcpip-forward` requests in the SSH transport layer, independently of what runs in the session channel.
+
+The `port-forwarding` option in the key line explicitly allows this:
+
+```
+command="...",restrict,pty,agent-forwarding,port-forwarding,X11-forwarding ssh-ed25519 ...
+```
+
+Without `port-forwarding` after `restrict`, sshd would deny all forwarding requests.
+
+## Container network configuration
+
+Containers are created with the `sleep infinity` command and all interaction happens via `docker exec`. The container itself does not expose any ports to the host -- there is no `-p` flag in the container creation. Network access flows through two paths:
+
+1. **Intra-session** -- containers on the same per-user network communicate directly via Docker DNS
+2. **External access** -- SSH port forwarding tunnels through sshd to reach container services
+
+This means no container ports are exposed on the host's network interfaces. The only way to reach a service inside a container is through an authenticated SSH session.
+
+## Network cleanup
+
+When a session is destroyed, `cleanupSessionResources` in `internal/spawn/spawn.go` handles network teardown:
+
+1. Remove the dev container (force)
+2. Stop and remove companion service containers via `podfile.StopServices`
+3. Remove the Docker network via `Runtime.RemoveNetwork`
+
+If the network cannot be removed (containers still attached), the next `spawn` invocation's reconciliation or the cleanup daemon will retry. Docker also garbage-collects networks with no connected containers.
+
+## Security implications
+
+| Property | How it's achieved |
+|---|---|
+| User isolation | Per-user bridge networks, no shared default bridge |
+| No exposed ports | Containers don't publish ports to the host |
+| Authenticated access only | Port forwarding requires a valid SSH session |
+| Service isolation | Companion services only reachable within their session's network |
+| Crash resilience | Networks labeled `managed-by: podspawn` are cleaned up by reconciliation |

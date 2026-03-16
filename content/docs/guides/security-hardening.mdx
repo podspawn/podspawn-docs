@@ -1,0 +1,231 @@
+---
+title: Security Hardening
+description: Default security posture and options for hardening podspawn container environments
+---
+
+Podspawn's architecture is inherently more secure than alternatives because it never touches the SSH protocol. By delegating authentication and encryption to native sshd, it eliminates an entire class of vulnerabilities (like CVE-2024-45337, an authentication bypass in Go's `x/crypto/ssh` library that affected custom SSH servers).
+
+This guide covers the default security configuration and options for further hardening.
+
+## Default security posture
+
+Every container launched by podspawn ships with these security settings out of the box. You do not need to configure anything to get this baseline.
+
+### Capability restrictions
+
+```yaml
+security:
+  cap_drop: ["ALL"]
+  cap_add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "NET_BIND_SERVICE"]
+  no_new_privileges: true
+```
+
+All Linux capabilities are dropped, then only the minimum set needed for a functional dev environment is added back:
+
+| Capability | Why it's needed |
+|-----------|----------------|
+| CHOWN | Changing file ownership (e.g., `chown` in setup scripts) |
+| SETUID | Switching users inside the container |
+| SETGID | Group permission operations |
+| DAC_OVERRIDE | Reading/writing files regardless of permissions (needed for dev workflows) |
+| FOWNER | Operations on files regardless of ownership |
+| NET_BIND_SERVICE | Binding to ports below 1024 |
+
+`no-new-privileges` prevents processes from gaining additional capabilities through setuid/setgid binaries or filesystem capabilities.
+
+### PID limits
+
+```yaml
+security:
+  pids_limit: 256
+```
+
+Limits the number of processes in each container to 256 by default. This prevents fork bombs and runaway process creation from affecting the host or other containers.
+
+### Per-user network isolation
+
+Each user's containers run on a dedicated Docker bridge network. The network is named `podspawn-<user>-<project>-net` (or `podspawn-<user>-net` for non-project sessions).
+
+This means:
+- Alice's containers cannot communicate with Bob's containers by IP
+- Companion services (postgres, redis) share the user's network and are reachable by service name
+- The host network is not shared
+
+### auth-keys crash safety
+
+The `auth-keys` command includes a deferred panic recovery. If it crashes for any reason, it exits cleanly (exit 0) and sshd falls through to normal authentication. Real system users are never locked out by a podspawn bug.
+
+## Customizing capabilities
+
+To restrict containers further, modify `security.cap_add` in `/etc/podspawn/config.yaml`:
+
+```yaml
+security:
+  cap_drop: ["ALL"]
+  cap_add: ["CHOWN", "SETUID", "SETGID"]
+  no_new_privileges: true
+```
+
+Removing `DAC_OVERRIDE` and `FOWNER` gives tighter file permission enforcement but may break some development workflows that expect root-like file access.
+
+To add capabilities (e.g., for Docker-in-Docker):
+
+```yaml
+security:
+  cap_drop: ["ALL"]
+  cap_add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "NET_BIND_SERVICE", "SYS_ADMIN"]
+```
+
+<Callout type="warn">
+Adding `SYS_ADMIN` significantly weakens container isolation. Only do this if you need Docker-in-Docker or similar privileged operations, and only for trusted users.
+</Callout>
+
+## Seccomp profiles
+
+Seccomp filters restrict the system calls a container process can make. Docker's default seccomp profile blocks ~44 dangerous syscalls. You can use a custom profile for tighter restrictions.
+
+```yaml
+security:
+  # Reference a custom seccomp profile
+  # The profile is passed as --security-opt seccomp=<path>
+```
+
+To create a custom profile, start with Docker's default and remove syscalls your workloads don't need. The profile is a JSON file:
+
+```json
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "syscalls": [
+    {
+      "names": ["read", "write", "open", "close", "stat", "fstat", "mmap", "..."],
+      "action": "SCMP_ACT_ALLOW"
+    }
+  ]
+}
+```
+
+Place it at `/etc/podspawn/seccomp.json` and reference it in your config.
+
+## gVisor runtime
+
+gVisor (`runsc`) interposes a user-space kernel between the container and the host kernel. Instead of containers sharing the host kernel (the default Docker model), gVisor intercepts all system calls and implements them in its own kernel. This provides a much stronger isolation boundary.
+
+```yaml
+security:
+  runtime: "runsc"
+```
+
+### Installing gVisor
+
+```bash
+# Add the gVisor repository
+curl -fsSL https://gvisor.dev/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" | sudo tee /etc/apt/sources.list.d/gvisor.list > /dev/null
+
+# Install
+sudo apt-get update && sudo apt-get install -y runsc
+
+# Register with Docker
+sudo runsc install
+sudo systemctl reload docker
+```
+
+### Trade-offs
+
+| Aspect | Docker (default) | gVisor |
+|--------|-----------------|--------|
+| Isolation | Linux namespaces + cgroups (shared kernel) | User-space kernel (separate syscall surface) |
+| Performance | Native | ~5-15% overhead for syscall-heavy workloads |
+| Compatibility | Full Linux syscall support | Most syscalls supported, some edge cases |
+| Startup time | ~300-500ms | ~500-800ms |
+
+<Callout type="info">
+gVisor is the recommended runtime for multi-tenant deployments where users don't fully trust each other. For single-team usage, the default Docker runtime with the hardened config is sufficient.
+</Callout>
+
+## Read-only root filesystem
+
+Making the root filesystem read-only prevents processes from modifying system binaries or configuration:
+
+```yaml
+security:
+  readonly_rootfs: true
+  tmpfs:
+    /tmp: "rw,noexec,nosuid,size=512m"
+    /home/dev: "rw,exec,nosuid,size=2g"
+```
+
+When `readonly_rootfs` is enabled, you must provide writable tmpfs mounts for directories that need write access:
+
+| Mount | Flags | Purpose |
+|-------|-------|---------|
+| `/tmp` | `rw,noexec,nosuid,size=512m` | Temporary files. `noexec` prevents running binaries from /tmp. |
+| `/home/dev` | `rw,exec,nosuid,size=2g` | User's home directory. `exec` is needed for development tools. |
+
+The `nosuid` flag on both prevents setuid/setgid exploitation.
+
+## PID limits
+
+Adjust the PID limit per your workload:
+
+```yaml
+security:
+  pids_limit: 512  # for heavier workloads
+```
+
+Common values:
+
+| Value | Suitable for |
+|-------|-------------|
+| 128 | Lightweight tasks, CI agents |
+| 256 | Default, general development |
+| 512 | Multi-process development servers (e.g., running frontend + backend) |
+| 1024 | Heavy workloads, Docker-in-Docker |
+
+## Per-user network isolation
+
+Network isolation is automatic. Each session creates a dedicated Docker bridge network. To verify:
+
+```bash
+# List networks created by podspawn
+docker network ls --filter label=managed-by=podspawn
+
+# Inspect a specific network
+docker network inspect podspawn-alice-backend-net
+```
+
+Companion services defined in a Podfile share the session's network, so they can communicate with the dev container by service name (e.g., `postgres:5432`). But they are isolated from other users' services.
+
+## Audit logging
+
+Podspawn writes structured audit events to a log file when configured:
+
+```yaml
+log:
+  audit_log: "/var/log/podspawn/audit.log"
+```
+
+Events logged:
+
+| Event | Details |
+|-------|---------|
+| connect | User, project, container name, connection count |
+| disconnect | User, project, container name, remaining connections |
+| container_create | User, project, container name, image |
+| container_destroy | User, project, container name, reason |
+| command | User, project, SSH_ORIGINAL_COMMAND value |
+
+Use these logs for compliance, debugging, and intrusion detection. The audit log is append-only and separate from the general application log.
+
+## Server setup safety
+
+The `server-setup` command is designed to be maximally defensive:
+
+1. Validates sshd_config before making changes
+2. Creates a backup of the current config
+3. Validates again after changes
+4. Restores the backup automatically if validation fails
+5. Creates an emergency key as a break-glass fallback
+6. Reloads (not restarts) sshd, so existing sessions survive
+
+If podspawn ever malfunctions, the emergency key at `/etc/podspawn/emergency.keys` provides a fallback SSH access path that is independent of podspawn.

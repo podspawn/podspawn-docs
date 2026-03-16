@@ -1,0 +1,104 @@
+---
+title: Packages
+description: How podspawn installs packages in containers, including apt packages, versioned runtimes, and the built-in version map.
+---
+
+The `packages` field in a Podfile lists software to install in the container during setup. Podspawn splits packages into two categories: plain apt packages and versioned runtime installs.
+
+## Syntax
+
+```yaml
+packages:
+  - git                # apt package (latest)
+  - curl               # apt package (latest)
+  - nodejs@22          # versioned runtime
+  - python@3.12        # versioned runtime
+  - go@1.22            # versioned runtime (any version)
+  - rust               # apt package (no version = apt)
+  - rust@stable        # versioned runtime (any version)
+```
+
+Plain package names (no `@`) are installed with `apt-get install -y`. Names with `@version` are looked up in the built-in version map.
+
+## Version map
+
+Podspawn ships with install sequences for common development runtimes. These are defined in the source and handle repository setup, GPG keys, and installation automatically.
+
+### nodejs
+
+Installed via NodeSource.
+
+| Version | Supported |
+|---------|-----------|
+| `18` | Yes |
+| `20` | Yes |
+| `22` | Yes |
+
+```yaml
+packages:
+  - nodejs@22
+```
+
+### python
+
+Installed via the deadsnakes PPA.
+
+| Version | Supported |
+|---------|-----------|
+| `3.11` | Yes |
+| `3.12` | Yes |
+| `3.13` | Yes |
+
+Installs both the interpreter and venv module (e.g., `python3.12` and `python3.12-venv`).
+
+```yaml
+packages:
+  - python@3.12
+```
+
+### go
+
+Installed from the official Go downloads. Accepts any version string, so you are not limited to a fixed set.
+
+```yaml
+packages:
+  - go@1.22
+  - go@1.23.4
+```
+
+The binary is downloaded for the container's architecture and extracted to `/usr/local/go`, with a symlink at `/usr/local/bin/go`.
+
+### rust
+
+Installed via rustup. Accepts any toolchain specifier as the version.
+
+```yaml
+packages:
+  - rust@stable
+  - rust@nightly
+  - rust@1.78.0
+```
+
+## Unknown versioned packages
+
+If a package name with a version is not in the built-in map, podspawn falls back to apt with a version glob:
+
+```yaml
+packages:
+  - nginx@1.24    # becomes: apt-get install -y nginx=1.24*
+```
+
+This works for any apt package that supports version pinning.
+
+## How it works
+
+Under the hood, `InstallCommands` splits the package list into two groups:
+
+1. **apt packages** - collected and installed in a single `apt-get install -y` call.
+2. **special install sequences** - run as individual shell commands in order.
+
+Apt packages are always installed first, followed by the versioned runtime installs.
+
+<Callout>
+If you specify a version for a known runtime that is not in the supported list (e.g., `nodejs@16`), podspawn returns an error listing the available versions. For runtimes that accept any version (Go, Rust), the version string is passed through directly.
+</Callout>

@@ -1,0 +1,309 @@
+---
+title: Server Commands
+description: CLI reference for podspawn server-side commands invoked by sshd or administrators
+---
+
+These commands run on the server. Some are called automatically by sshd (`auth-keys`, `spawn`), while others are run by administrators to manage the installation.
+
+## auth-keys
+
+The `AuthorizedKeysCommand` handler. sshd calls this during authentication to look up SSH keys for container users. If the username matches a registered user, it returns their public keys with a `command=` directive that forces `podspawn spawn`. If not, it returns nothing and sshd falls through to normal authentication.
+
+This command never makes network calls. It reads keys from local files only.
+
+```bash
+podspawn auth-keys <username> [key-type] [key-data]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--key-dir` | `/etc/podspawn/keys` | Directory containing per-user key files |
+| `--config` | `/etc/podspawn/config.yaml` | Config file path (overrides `--key-dir` if set in config) |
+
+### How it works
+
+1. Validates the username (rejects path traversal attempts like `../` or `/`)
+2. Reads `/etc/podspawn/keys/<username>` (one key per line, standard authorized_keys format)
+3. For each key, writes an authorized_keys line to stdout:
+   ```
+   command="/usr/local/bin/podspawn spawn --user alice",restrict,pty,agent-forwarding,port-forwarding,X11-forwarding ssh-ed25519 AAAA... alice@laptop
+   ```
+4. If the file doesn't exist, outputs nothing (exit 0). sshd falls through to normal auth.
+
+### sshd_config integration
+
+```
+AuthorizedKeysCommand /usr/local/bin/podspawn auth-keys %u %t %k
+AuthorizedKeysCommandUser nobody
+```
+
+<Callout type="info">
+If `auth-keys` crashes or panics, it recovers and exits cleanly (exit 0). sshd treats this as "no keys found" and proceeds with normal authentication. Real system users are never affected.
+</Callout>
+
+---
+
+## spawn
+
+The `ForceCommand` handler. Called by sshd after successful authentication when the matched key has a `command=` directive. Manages the full session lifecycle: creating or reattaching to a Docker container, routing I/O based on session type, and cleaning up on disconnect.
+
+```bash
+podspawn spawn --user <username> [--project <name>]
+```
+
+### Flags
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--user` | Yes | | Username for the session |
+| `--project` | No | | Project name for Podfile-aware sessions |
+| `--config` | No | `/etc/podspawn/config.yaml` | Config file path |
+| `--log-file` | No | | Log to file instead of stderr |
+
+### Session routing
+
+The session type is determined by `SSH_ORIGINAL_COMMAND`:
+
+| SSH_ORIGINAL_COMMAND | Session type | Container command |
+|----------------------|-------------|-------------------|
+| (empty) | Interactive shell | `exec <shell>` with TTY |
+| Contains `sftp-server` or `internal-sftp` | SFTP | `exec /usr/lib/openssh/sftp-server` |
+| Anything else | Remote command (scp, rsync, etc.) | `exec sh -c "<command>"` |
+
+### Project routing
+
+The project name can come from two sources:
+
+1. The `--project` flag (set in the `command=` directive)
+2. The `PODSPAWN_PROJECT` environment variable (sent by the client via `SetEnv`/`SendEnv`)
+
+The `.pod` suffix is stripped automatically: `PODSPAWN_PROJECT=backend.pod` becomes project `backend`.
+
+### Examples
+
+These are not commands you run manually. They show what sshd invokes:
+
+```bash
+# Interactive shell (SSH_ORIGINAL_COMMAND is empty)
+podspawn spawn --user alice
+
+# With project routing
+podspawn spawn --user alice --project backend
+
+# SFTP (SSH_ORIGINAL_COMMAND="/usr/lib/openssh/sftp-server")
+podspawn spawn --user alice
+
+# Remote command (SSH_ORIGINAL_COMMAND="ls -la /workspace")
+podspawn spawn --user alice
+```
+
+---
+
+## server-setup
+
+Configures sshd for podspawn integration. Creates the `/etc/podspawn/` directory structure, appends `AuthorizedKeysCommand` lines to `sshd_config`, validates the config before and after changes, and reloads sshd.
+
+Requires root privileges.
+
+```bash
+sudo podspawn server-setup [flags]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--sshd-config` | `/etc/ssh/sshd_config` | Path to sshd_config |
+| `--service-name` | (auto-detected) | SSH service name for reload (e.g., `sshd`, `ssh`) |
+| `--dry-run` | `false` | Show what would be done without making changes |
+
+### What it does
+
+1. Validates the current sshd_config with `sshd -t`
+2. Backs up sshd_config before changes
+3. Verifies existing auth methods still work (prevents lockout)
+4. Appends `AuthorizedKeysCommand` and `AuthorizedKeysCommandUser` lines
+5. Validates the new config with `sshd -t`
+6. If validation fails, restores the backup automatically
+7. Creates `/etc/podspawn/keys/`, `/var/lib/podspawn/`, and other required directories
+8. Reloads sshd (existing sessions survive)
+
+### Examples
+
+```bash
+# Standard setup
+sudo podspawn server-setup
+
+# Preview changes without applying
+sudo podspawn server-setup --dry-run
+
+# Custom sshd_config location
+sudo podspawn server-setup --sshd-config /etc/ssh/sshd_config.d/podspawn.conf
+```
+
+<Callout type="warn">
+The command is idempotent. Running it twice will not duplicate config lines. But always review with `--dry-run` first on production servers.
+</Callout>
+
+---
+
+## add-user
+
+Registers SSH public keys for a container user. Keys are written to `/etc/podspawn/keys/<username>` in standard authorized_keys format. Multiple key sources can be combined in a single call.
+
+```bash
+podspawn add-user <username> [flags]
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--key <string>` | SSH public key string (repeatable) |
+| `--key-file <path>` | Path to SSH public key file (repeatable) |
+| `--github <username>` | GitHub username to import keys from (one-time fetch) |
+
+At least one of `--key`, `--key-file`, or `--github` is required.
+
+### Username validation
+
+Usernames must not contain `/` or `..` (path traversal prevention). The username maps directly to a file in the key directory and a Docker container name prefix.
+
+### Examples
+
+```bash
+# From a public key string
+podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
+
+# From a key file
+podspawn add-user alice --key-file ~/.ssh/id_ed25519.pub
+
+# Import from GitHub
+podspawn add-user alice --github alicegh
+
+# Combine sources
+podspawn add-user alice \
+  --key-file ~/.ssh/id_ed25519.pub \
+  --github alicegh
+```
+
+<Callout type="info">
+GitHub key import is a one-time fetch, not a runtime dependency. Once imported, keys live locally at `/etc/podspawn/keys/<username>`. The `auth-keys` command never makes network calls.
+</Callout>
+
+---
+
+## add-project
+
+Registers a project by cloning its git repository, locating and parsing its Podfile, and pre-building the container image. The project name becomes the routing key: `ssh alice@<name>.pod`.
+
+```bash
+podspawn add-project <name> --repo <url> [flags]
+```
+
+### Flags
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--repo` | Yes | | Git repository URL |
+| `--branch` | No | (repo default) | Git branch to clone |
+
+### What it does
+
+1. Clones the repository to `/var/lib/podspawn/projects/<name>`
+2. Searches for a Podfile (`podfile.yaml`, `.podspawn/podfile.yaml`, etc.)
+3. Parses the Podfile and generates a Dockerfile from it
+4. Builds and tags the image with a content-hash for cache invalidation
+5. Saves the project config to `/etc/podspawn/projects.yaml`
+
+If any step fails, the cloned directory is cleaned up automatically.
+
+### Examples
+
+```bash
+# Register a project
+podspawn add-project backend --repo https://github.com/company/backend
+
+# With a specific branch
+podspawn add-project backend --repo https://github.com/company/backend --branch develop
+```
+
+<Callout type="warn">
+If the project name is already registered, the command fails. Use `update-project` to pull changes and rebuild.
+</Callout>
+
+---
+
+## update-project
+
+Pulls the latest changes for a registered project and rebuilds the Podfile image if the Podfile has changed. Uses content-hash comparison to skip unnecessary rebuilds.
+
+```bash
+podspawn update-project <name>
+```
+
+### What it does
+
+1. Pulls the latest commits in the project's local clone
+2. Re-reads the Podfile and computes a new content hash
+3. If the hash matches the stored hash, skips the rebuild
+4. If changed, parses the Podfile, builds a new image, and updates the project config
+
+### Examples
+
+```bash
+# Update after a Podfile change
+podspawn update-project backend
+
+# Automate with a CI webhook or cron job
+*/5 * * * * podspawn update-project backend 2>&1 | logger -t podspawn
+```
+
+---
+
+## verify-image
+
+Checks whether a container image has the tools needed for full podspawn compatibility. Spins up a temporary container, runs a series of checks, and reports results.
+
+```bash
+podspawn verify-image <image>
+```
+
+### Checks performed
+
+| Check | What it looks for | Fix if missing |
+|-------|-------------------|---------------|
+| bash | `/bin/bash` is executable | `apt-get install -y bash` |
+| sftp-server | `/usr/lib/openssh/sftp-server` exists | `apt-get install -y openssh-sftp-server` |
+| locale | `locale -a` runs successfully | `apt-get install -y locales && locale-gen en_US.UTF-8` |
+| git | `git --version` runs | `apt-get install -y git` |
+
+### Output
+
+```
+  OK    bash
+  OK    sftp-server
+  FAIL  locale
+        fix: apt-get install -y locales && locale-gen en_US.UTF-8
+  OK    git
+
+3 passed, 1 failed
+```
+
+Exit code is non-zero if any check fails.
+
+### Examples
+
+```bash
+# Check the default image
+podspawn verify-image ubuntu:24.04
+
+# Check a custom image
+podspawn verify-image ghcr.io/company/dev-image:latest
+```
+
+<Callout type="info">
+If sftp-server is missing, podspawn can inject a statically-compiled binary into the container at startup via a bind-mount. SFTP will work even with minimal images like Alpine, but `verify-image` still flags it so you know.
+</Callout>

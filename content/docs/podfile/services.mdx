@@ -1,0 +1,90 @@
+---
+title: Services
+description: How to declare companion service containers (databases, caches, message brokers) that run alongside your development container.
+---
+
+The `services` field in a Podfile lets you declare companion containers that run alongside your main development container. These are typically databases, caches, or other infrastructure your project depends on.
+
+## Example
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: myapp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  - name: redis
+    image: redis:7
+    ports: [6379]
+
+  - name: rabbitmq
+    image: rabbitmq:3-management
+    ports: [5672, 15672]
+    env:
+      RABBITMQ_DEFAULT_USER: dev
+      RABBITMQ_DEFAULT_PASS: dev
+```
+
+## Fields
+
+Each service entry has the following fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | yes | Identifier for the service. Used as the DNS hostname on the shared Docker network and as part of the container name. |
+| `image` | `string` | yes | Docker image to run. Any valid image reference works. |
+| `ports` | `[]int` | no | Ports the service listens on. Used for documentation and port forwarding. |
+| `env` | `map[string]string` | no | Environment variables passed to the service container. |
+| `volumes` | `[]string` | no | Volume mounts in `source:target` format. |
+
+## Docker network and DNS discovery
+
+All service containers and the main development container are placed on a shared Docker network. The `name` field is registered as the container's network alias, which means your application can reach services by hostname.
+
+For example, with a service named `postgres`, your app connects to:
+
+```
+postgresql://devuser:devpass@postgres:5432/myapp
+```
+
+No `localhost`, no IP addresses, no port mapping gymnastics. The service name is the hostname.
+
+## Container naming
+
+Service containers are named `<session-prefix>-<service-name>`. For example, if the session prefix is `podspawn-alice-myproject`, a postgres service gets the container name `podspawn-alice-myproject-postgres`.
+
+## Lifecycle
+
+Service containers follow the same lifecycle as the main container:
+
+- **Started** when the session is created, before `on_create` hooks run.
+- **Stopped and removed** when the session ends (after the grace period expires or `max_lifetime` is reached).
+
+If a service fails to start, all previously started services for that session are cleaned up before the error is returned. This prevents orphaned containers.
+
+## Cleanup behavior
+
+Service cleanup is best-effort. If a service container cannot be removed (e.g., Docker daemon issue), the failure is logged as a warning and cleanup continues with the remaining containers.
+
+<Callout>
+Service containers are labeled with `managed-by: podspawn` and `podspawn-service: <name>` for identification. These labels can be used to find orphaned service containers if cleanup fails.
+</Callout>
+
+## Volume persistence
+
+Named volumes (like `pgdata:/var/lib/postgresql/data`) persist across container restarts within the same session. However, when a session is fully destroyed, the volumes are removed with the containers.
+
+For data that needs to survive across sessions, use a host-mounted volume with an absolute path:
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    volumes:
+      - /data/alice/pgdata:/var/lib/postgresql/data
+```
