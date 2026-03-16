@@ -38,7 +38,7 @@ podspawn version
 ```
 
 ```
-podspawn v0.1.0 (linux/amd64)
+podspawn v0.1.0 (a1b2c3d)
 ```
 
 ## Step 2: Run server-setup
@@ -50,29 +50,16 @@ sudo podspawn server-setup
 ```
 
 ```
-[1/8] Validating current sshd config... ok
-[2/8] Backing up /etc/ssh/sshd_config to /etc/ssh/sshd_config.bak... ok
-[3/8] Verifying AuthorizedKeysFile is enabled... ok
-[4/8] Verifying existing access method (password or keys)... ok (pubkey auth active)
-[5/8] Appending AuthorizedKeysCommand to sshd_config... ok
-[6/8] Validating new sshd config... ok
-[7/8] Creating /etc/podspawn/ directory structure... ok
-[8/8] Reloading sshd... ok
-
-Server setup complete. Two lines were added to /etc/ssh/sshd_config:
-
-  AuthorizedKeysCommand /usr/local/bin/podspawn auth-keys %u %t %k
-  AuthorizedKeysCommandUser nobody
-
-Your existing SSH access is unchanged. System users authenticate
-normally. Only users registered with "podspawn add-user" will get
-containers.
+backed up /etc/ssh/sshd_config to /etc/ssh/sshd_config.podspawn.bak
+appended AuthorizedKeysCommand to /etc/ssh/sshd_config
+reloaded ssh
+server-setup complete
 ```
 
 What happened behind the scenes:
 
 - sshd was validated before and after any changes
-- A backup was saved at `/etc/ssh/sshd_config.bak`
+- A backup was saved at `/etc/ssh/sshd_config.podspawn.bak`
 - The `AuthorizedKeysCommand` lines tell sshd to call podspawn when authenticating users
 - The directory `/etc/podspawn/keys/` was created for storing user public keys
 - The state database was initialized at `/var/lib/podspawn/state.db`
@@ -87,10 +74,7 @@ sudo podspawn add-user sarah --github sarahcodes
 ```
 
 ```
-Fetched 2 keys from github.com/sarahcodes
-Wrote /etc/podspawn/keys/sarah (2 keys)
-User "sarah" is ready. They can SSH in with:
-  ssh sarah@devbox.company.com
+added 2 key(s) for sarah
 ```
 
 The `--github` flag is a one-time import. The keys are saved locally at `/etc/podspawn/keys/sarah` in standard authorized_keys format. From this point forward, auth-keys reads from that local file and never makes network calls. If GitHub goes down, authentication still works.
@@ -112,12 +96,7 @@ podspawn setup
 ```
 
 ```
-Added to /Users/sarah/.ssh/config:
-
-  Host *.pod
-      ProxyCommand podspawn connect %r %h %p
-      UserKnownHostsFile /dev/null
-      StrictHostKeyChecking no
+added *.pod block to ~/.ssh/config
 ```
 
 She also needs to tell podspawn where her server is. Create `~/.podspawn/config.yaml`:
@@ -201,12 +180,7 @@ sudo podspawn add-project api --repo github.com/company/node-api
 ```
 
 ```
-Project "api" registered.
-  Repo: github.com/company/node-api
-  Podfile will be read from: podfile.yaml
-
-Users can connect with:
-  ssh <user>@api.pod
+project api registered, image: podspawn-api:a1b2c3d
 ```
 
 This adds an entry to the `projects` section of `/etc/podspawn/config.yaml`:
@@ -300,10 +274,7 @@ sudo podspawn cleanup --daemon
 ```
 
 ```
-Cleanup daemon started. Checking every 60s.
-  Enforcing max lifetime: 8h
-  Expiring grace periods: 60s
-  Reconciling orphaned containers
+INFO cleanup daemon started interval=1m0s
 ```
 
 Or run it once for a one-shot cleanup:
@@ -313,9 +284,10 @@ sudo podspawn cleanup
 ```
 
 ```
-Expired 1 grace-period session (sarah/work, idle 4m12s)
-Removed 1 orphaned container (podspawn-bob-api, no DB record)
-Active sessions: 2
+INFO grace period expired, destroying user=sarah project=work container=podspawn-sarah-work
+INFO removing orphaned container name=podspawn-bob-api id=3f4a5b6c7d8e
+INFO cleanup pass complete grace_expired=1 lifetime_expired=0 orphans_removed=1
+Cleanup pass complete.
 ```
 
 Check who is connected right now:
@@ -325,28 +297,25 @@ sudo podspawn list
 ```
 
 ```
-USER     PROJECT   STATUS    CONNECTIONS  STARTED          SERVICES
-sarah    api       running   1            10 min ago       postgres
-james    api       running   2            45 min ago       postgres
-sarah    work      grace     0            4 min ago        -
+USER   PROJECT    CONTAINER            STATUS        CONNS  AGE   LIFETIME LEFT
+sarah  api        podspawn-sarah-api   running       1      10m   7h50m
+james  api        podspawn-james-api   running       2      45m   7h15m
+sarah  (default)  podspawn-sarah       grace_period  0      4m    7h56m
 ```
 
-Sarah has one SSH session to the `api` project and a `work` session in the grace period (she disconnected 4 minutes ago). James has two terminals open to `api`.
+Sarah has one SSH session to the `api` project and a default session in the grace period (she disconnected 4 minutes ago). James has two terminals open to `api`.
 
 ## Step 10: Remove a user
 
 James is leaving the team. Remove his access:
 
 ```bash
-sudo podspawn remove-user james
+sudo podspawn remove-user james --force
 ```
 
 ```
-Stopping active session: james/api (container podspawn-james-api)
-  Stopped companion service: postgres
-  Removed container
-Deleted /etc/podspawn/keys/james
-User "james" removed.
+INFO destroying session user=james container=podspawn-james-api
+removed user james (1 session(s) destroyed)
 ```
 
 This immediately stops any running containers for that user, destroys companion services, and deletes their keys from the local store. James's next SSH attempt falls through to normal sshd auth, which rejects him because he has no system account.
