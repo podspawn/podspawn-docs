@@ -1,45 +1,40 @@
 # podspawn-docs
 
-This is a Next.js application generated with
-[Create Fumadocs](https://github.com/fuma-nama/fumadocs).
+Documentation site for [podspawn](https://github.com/podspawn/podspawn) -- ephemeral SSH dev containers via native sshd.
 
-Run development server:
+Built with [Fumadocs](https://fumadocs.dev) + Next.js.
+
+## Development
 
 ```bash
-npm run dev
-# or
-pnpm dev
-# or
-yarn dev
+bun install
+bun run dev
 ```
 
-Open http://localhost:3000 with your browser to see the result.
+Open http://localhost:3000.
 
-## Explore
+## Structure
 
-In the project, you can see:
+```
+content/docs/
+  getting-started/   # Installation, quick start, client setup
+  concepts/          # Architecture, session lifecycle, auth, networking
+  configuration/     # Server, client, security, user overrides
+  podfile/           # Podfile spec, packages, services, hooks, devcontainer
+  cli/               # Server, client, and admin command reference
+  guides/            # SSH features, security, AI agents, IDE integration
+```
 
-- `lib/source.ts`: Code for content source adapter, [`loader()`](https://fumadocs.dev/docs/headless/source-api) provides the interface to access your content.
-- `lib/layout.shared.tsx`: Shared options for layouts, optional but preferred to keep.
+24 documentation pages + landing page.
 
-| Route                     | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `app/(home)`              | The route group for your landing page and other pages. |
-| `app/docs`                | The documentation layout and pages.                    |
-| `app/api/search/route.ts` | The Route Handler for search.                          |
+## Deploy
 
-### Fumadocs MDX
+```bash
+bun run build
+```
 
-A `source.config.ts` config file has been included, you can customise different options like frontmatter schema.
+Static export in `.next/` -- deploy to Vercel, Cloudflare Pages, or any static host.
 
-Read the [Introduction](https://fumadocs.dev/docs/mdx) for further details.
+## License
 
-## Learn More
-
-To learn more about Next.js and Fumadocs, take a look at the following
-resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js
-  features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [Fumadocs](https://fumadocs.dev) - learn about Fumadocs
+AGPL-3.0, same as podspawn.
