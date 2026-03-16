@@ -87,7 +87,7 @@ export default function HomePage() {
                 <ArrowRight className="size-4" />
               </Link>
               <Link
-                href="https://github.com/o1x3/podspawn"
+                href="https://github.com/podspawn/podspawn"
                 className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-6 py-3 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
               >
                 <GitBranch className="size-4" />

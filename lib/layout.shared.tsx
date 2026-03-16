@@ -1,7 +1,7 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
 export const gitConfig = {
-  user: 'o1x3',
+  user: 'podspawn',
   repo: 'podspawn',
   branch: 'main',
 };
@@ -19,9 +19,13 @@ export function baseOptions(): BaseLayoutProps {
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
     links: [
       {
-        text: 'Docs',
+        text: 'Documentation',
         url: '/docs',
         active: 'nested-url',
+      },
+      {
+        text: 'GitHub',
+        url: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
       },
     ],
   };
