@@ -1,5 +1,5 @@
 {
   "title": "Guides",
   "icon": "Map",
-  "pages": ["ssh-features", "security-hardening", "ai-agents", "ide-integration"]
+  "pages": ["tutorial", "ssh-features", "security-hardening", "ai-agents", "ide-integration", "operations", "troubleshooting"]
 }

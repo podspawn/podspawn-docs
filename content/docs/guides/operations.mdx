@@ -1,0 +1,272 @@
+---
+title: Operations
+description: Running podspawn in production
+---
+
+This guide covers day-to-day operations for podspawn servers: backups, upgrades, monitoring, capacity planning, and log management.
+
+## Backup
+
+Podspawn stores all state in a small number of files. Back these up regularly.
+
+### What to back up
+
+| Path | Contents | Frequency |
+|------|----------|-----------|
+| `/var/lib/podspawn/state.db` | Session state (SQLite, WAL mode) | Daily or before upgrades |
+| `/etc/podspawn/keys/` | Per-user public keys | After every `add-user` / `remove-user` |
+| `/etc/podspawn/config.yaml` | Server configuration | After config changes |
+| `/etc/podspawn/projects.yaml` | Project-to-repo mappings | After project changes |
+| `/etc/podspawn/users/` | Per-user override configs | After user config changes |
+
+### SQLite backup
+
+SQLite with WAL mode requires a proper backup, not just copying the file. Use the `.backup` command or the SQLite Online Backup API to get a consistent snapshot.
+
+```bash
+# Safe backup using sqlite3 CLI
+sqlite3 /var/lib/podspawn/state.db ".backup /backup/podspawn/state.db"
+
+# Or use cp, but only after checkpointing the WAL
+sqlite3 /var/lib/podspawn/state.db "PRAGMA wal_checkpoint(TRUNCATE);"
+cp /var/lib/podspawn/state.db /backup/podspawn/state.db
+```
+
+<Callout type="warn">
+Do not copy `state.db` while sessions are active without checkpointing first. The WAL file (`state.db-wal`) and shared-memory file (`state.db-shm`) must stay consistent with the main database.
+</Callout>
+
+### Full backup script
+
+```bash
+#!/bin/bash
+BACKUP_DIR="/backup/podspawn/$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+
+sqlite3 /var/lib/podspawn/state.db ".backup $BACKUP_DIR/state.db"
+cp -a /etc/podspawn/keys/ "$BACKUP_DIR/keys/"
+cp /etc/podspawn/config.yaml "$BACKUP_DIR/config.yaml"
+cp /etc/podspawn/projects.yaml "$BACKUP_DIR/projects.yaml" 2>/dev/null
+cp -a /etc/podspawn/users/ "$BACKUP_DIR/users/" 2>/dev/null
+```
+
+## Restore
+
+To restore from backup, copy files back to their original locations and restart the cleanup daemon.
+
+```bash
+# Stop the cleanup daemon
+sudo systemctl stop podspawn-cleanup.service
+
+# Restore state database
+cp /backup/podspawn/20260315/state.db /var/lib/podspawn/state.db
+chown root:root /var/lib/podspawn/state.db
+
+# Restore keys
+cp -a /backup/podspawn/20260315/keys/ /etc/podspawn/keys/
+chmod 700 /etc/podspawn/keys/
+
+# Restore config
+cp /backup/podspawn/20260315/config.yaml /etc/podspawn/config.yaml
+
+# Restart cleanup daemon to reconcile state against Docker
+sudo systemctl start podspawn-cleanup.service
+```
+
+After restoring, the cleanup daemon will run a reconciliation pass. Any containers that exist in Docker but not in the restored database will be treated as orphans and removed. Any database records pointing to containers that no longer exist will be cleaned up.
+
+<Callout type="info">
+You do not need to restart sshd. The `auth-keys` and `spawn` commands read config and state on every invocation, so restored files take effect immediately.
+</Callout>
+
+## Upgrading
+
+Podspawn is a single static binary. Upgrading is a file replacement.
+
+### Upgrade procedure
+
+```bash
+# Download the new version
+curl -sSfL https://podspawn.dev/install.sh | sh
+
+# Or manually replace the binary
+sudo cp podspawn-new /usr/local/bin/podspawn
+sudo chmod 755 /usr/local/bin/podspawn
+
+# Restart the cleanup daemon (picks up the new binary)
+sudo systemctl restart podspawn-cleanup.service
+```
+
+### What happens to existing sessions
+
+- **Active SSH sessions survive.** Each session runs its own `podspawn spawn` process, which was started with the old binary. Those processes continue until the user disconnects.
+- **New SSH connections use the new binary.** sshd invokes `podspawn auth-keys` and `podspawn spawn` fresh on each connection.
+- **sshd does not need a restart.** The `AuthorizedKeysCommand` is a path to the binary, and sshd invokes it per-connection.
+
+If you want to reload sshd anyway (e.g., after config changes):
+
+```bash
+sudo systemctl reload sshd
+```
+
+`reload` sends SIGHUP to sshd, which re-reads its config without dropping existing connections.
+
+<Callout type="warn">
+Never `restart` sshd on a remote server unless you have out-of-band access (console, IPMI). A `reload` is always sufficient for config changes and is safe for active sessions.
+</Callout>
+
+## Monitoring
+
+### Quick status check
+
+```bash
+podspawn status
+```
+
+This shows active session counts, connection totals, and the age of the oldest session.
+
+### Prometheus metrics
+
+```bash
+podspawn status --prometheus
+```
+
+Outputs metrics in Prometheus exposition format. Integrate with node_exporter's textfile collector:
+
+```bash
+# Cron job: scrape metrics every 30 seconds
+* * * * * podspawn status --prometheus > /var/lib/prometheus/node-exporter/podspawn.prom
+* * * * * sleep 30 && podspawn status --prometheus > /var/lib/prometheus/node-exporter/podspawn.prom
+```
+
+Available metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `podspawn_sessions_total` | gauge | Total tracked sessions |
+| `podspawn_sessions_running` | gauge | Sessions in running state |
+| `podspawn_sessions_grace` | gauge | Sessions in grace period |
+| `podspawn_connections_total` | gauge | Active SSH connections |
+| `podspawn_containers_docker` | gauge | Docker containers with `managed-by=podspawn` |
+| `podspawn_oldest_session_seconds` | gauge | Age of the longest-running session |
+
+### Cleanup daemon health
+
+The cleanup daemon should be running at all times. Monitor it via systemd:
+
+```bash
+# Check if it's running
+systemctl is-active podspawn-cleanup.service
+
+# View recent logs
+journalctl -u podspawn-cleanup.service --since "1 hour ago"
+```
+
+Set up a systemd watchdog or external healthcheck to alert if the cleanup daemon goes down. The system works without it, but orphaned containers and expired grace periods will accumulate.
+
+### Audit logging
+
+Podspawn logs session events (create, connect, disconnect, destroy) to the audit log at `/var/log/podspawn/audit.log`. Each line is a structured JSON entry with timestamp, user, project, container ID, and event type.
+
+## Capacity planning
+
+### Disk
+
+Docker images are the biggest disk consumer. Plan for:
+
+| Item | Typical size |
+|------|-------------|
+| Base image (`ubuntu:24.04`) | ~80 MB |
+| Podfile-built image with dev tools | 500 MB - 2 GB |
+| Container writable layer (per session) | 50 - 500 MB |
+| Companion service data (postgres, redis) | Varies |
+| State database | < 1 MB |
+
+A server supporting 20 concurrent users with 3 distinct project images needs roughly 10-15 GB for images alone. Run `docker system df` periodically.
+
+```bash
+# Check Docker disk usage
+docker system df
+
+# Prune unused images (not currently in use by any container)
+docker image prune -a --filter "until=168h"
+```
+
+### Memory
+
+Each container consumes memory up to its configured limit (default: 2 GB from `config.yaml`). Companion services add to this.
+
+```
+Memory needed = (max_per_user * users) * memory_limit + companion_services
+```
+
+For 10 users, each limited to 3 sessions at 2 GB, with 1 postgres companion each:
+
+```
+(3 * 10) * 2 GB + (10 * 256 MB) = 62.5 GB
+```
+
+In practice, not all users will be active simultaneously. Monitor actual usage with `docker stats` and adjust limits in `config.yaml`.
+
+### Container limits
+
+The `max_per_user` and `max_containers` settings in `config.yaml` prevent runaway resource consumption:
+
+```yaml
+resources:
+  max_containers: 50    # total across all users
+  max_per_user: 3       # per-user session limit
+```
+
+`podspawn doctor` checks disk space and warns when free space drops below 5 GB.
+
+## Log rotation
+
+Podspawn writes to two log files:
+
+| Log | Path | Contents |
+|-----|------|----------|
+| Application log | `/var/log/podspawn/podspawn.log` | General operations, errors, debug output |
+| Audit log | `/var/log/podspawn/audit.log` | Session lifecycle events (structured JSON) |
+
+### logrotate configuration
+
+Create `/etc/logrotate.d/podspawn`:
+
+```
+/var/log/podspawn/podspawn.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+
+/var/log/podspawn/audit.log {
+    weekly
+    rotate 52
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+<Callout type="info">
+`copytruncate` is used instead of `create` + signal because `podspawn spawn` processes open the log file on each invocation. There is no long-lived daemon to signal for log reopening (the cleanup daemon uses slog, which handles this internally via journald when running under systemd).
+</Callout>
+
+The audit log uses `weekly` rotation with 52 weeks of retention so you have a full year of session history. Adjust based on compliance requirements.
+
+### Verifying rotation
+
+```bash
+# Test the config without actually rotating
+logrotate -d /etc/logrotate.d/podspawn
+
+# Force a rotation
+logrotate -f /etc/logrotate.d/podspawn
+```

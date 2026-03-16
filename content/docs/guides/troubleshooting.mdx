@@ -1,0 +1,464 @@
+---
+title: Troubleshooting
+description: Common issues and how to fix them
+---
+
+This page covers the most common issues people hit when setting up and running podspawn, along with concrete fixes. When in doubt, start with `podspawn doctor` at the bottom of this page.
+
+## Can't SSH in
+
+SSH authentication failures are the most common issue during initial setup. The symptoms are usually `Permission denied (publickey)` or a connection that hangs and times out.
+
+### Locked user account
+
+This is the single most common gotcha. When you create a user with `useradd`, the default password field is `!` (locked). sshd rejects locked accounts *before* it ever runs `AuthorizedKeysCommand`, so podspawn never gets a chance to return keys.
+
+```bash
+# Check if the account is locked
+sudo passwd -S alice
+# If the second field is "L", the account is locked
+
+# Fix: set the password field to * (unlocked, but no password login possible)
+sudo usermod -p '*' alice
+```
+
+<Callout type="warn">
+Do not use `usermod -p ''` (empty string). That sets an empty password, which means anyone can log in without credentials if password auth is enabled. Use `usermod -p '*'` instead, which unlocks the account while keeping password login impossible.
+</Callout>
+
+The `podspawn add-user` command handles this automatically. If you created the user manually, you need to unlock it yourself.
+
+### Wrong key or key not registered
+
+Podspawn reads keys from `/etc/podspawn/keys/<username>`. If the user's public key isn't there, `auth-keys` returns nothing and sshd rejects the connection.
+
+```bash
+# Check what keys are registered for a user
+cat /etc/podspawn/keys/alice
+
+# Register a key
+sudo podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
+
+# Or from a file
+sudo podspawn add-user alice --key-file /path/to/id_ed25519.pub
+
+# Or import from GitHub (one-time fetch, stored locally)
+sudo podspawn add-user alice --github alice
+```
+
+On the client side, make sure SSH is offering the correct key:
+
+```bash
+# Test with verbose output to see which keys are tried
+ssh -v alice@work.pod 2>&1 | grep "Offering"
+```
+
+### sshd not reloaded after config changes
+
+After running `podspawn server-setup` or manually editing `/etc/ssh/sshd_config`, sshd needs to be reloaded. Existing sessions survive a reload, so this is safe.
+
+```bash
+# Ubuntu/Debian
+sudo systemctl reload ssh
+
+# RHEL/Rocky/Fedora
+sudo systemctl reload sshd
+
+# Check the service name if unsure
+systemctl list-units | grep ssh
+```
+
+### AuthorizedKeysCommand not configured
+
+Verify the two required lines are in your sshd config:
+
+```bash
+sudo sshd -T | grep -i authorizedkeyscommand
+```
+
+You should see:
+
+```
+authorizedkeyscommand /usr/local/bin/podspawn auth-keys %u %t %k
+authorizedkeyscommanduser nobody
+```
+
+If these are missing, run `podspawn server-setup` or add them manually. After adding, validate and reload:
+
+```bash
+sudo sshd -t && sudo systemctl reload ssh
+```
+
+<Callout type="info">
+`sshd -t` validates the config without reloading. Always run it before reloading to avoid locking yourself out with a broken config.
+</Callout>
+
+### Debugging with sshd logs
+
+sshd logs are the single best debugging tool for auth failures. They show the exact reason a connection was rejected.
+
+```bash
+# Ubuntu/Debian
+sudo journalctl -u ssh -n 30 --no-pager
+
+# RHEL/Rocky/Fedora
+sudo journalctl -u sshd -n 30 --no-pager
+
+# Follow logs in real-time while testing
+sudo journalctl -u ssh -f
+```
+
+Common log messages and what they mean:
+
+| Log message | Cause |
+|-------------|-------|
+| `User alice not allowed because account is locked` | Locked account. Run `usermod -p '*' alice`. |
+| `AuthorizedKeysCommand /usr/local/bin/podspawn auth-keys ... failed, status 1` | podspawn binary not found, not executable, or crashing. |
+| `Could not open authorized keys command output` | The `AuthorizedKeysCommandUser` (usually `nobody`) can't read the key files. Check permissions on `/etc/podspawn/keys/`. |
+| `Authentication refused: bad ownership or modes for file` | Key file or directory has wrong permissions. |
+
+## Container won't start
+
+If SSH auth succeeds but you see errors about containers, the issue is between podspawn and Docker.
+
+### Docker not running
+
+```bash
+# Check Docker status
+sudo systemctl status docker
+
+# Start it if stopped
+sudo systemctl start docker
+
+# Verify the socket exists
+ls -la /var/run/docker.sock
+```
+
+### Image not pulled
+
+Podspawn auto-pulls images on first use, but this can fail if the image name is wrong or the registry is unreachable. For project containers, images must be pre-built.
+
+```bash
+# Check if the image exists locally
+docker images | grep ubuntu
+
+# Pull manually if needed
+docker pull ubuntu:24.04
+
+# For project images, build with
+sudo podspawn update-project myproject
+```
+
+If you see `image not pre-built, run podspawn update-project <name>`, that means the project was registered with `add-project` but the Podfile-based image hasn't been built yet (or the Podfile changed since the last build).
+
+### Disk full
+
+Docker images and containers eat disk space. A full disk causes container creation to fail with cryptic errors.
+
+```bash
+# Check disk usage
+df -h /var/lib/docker
+
+# Clean up stopped containers, dangling images, and build cache
+docker system prune -f
+
+# Nuclear option: remove all unused images too
+docker system prune -a -f
+```
+
+<Callout type="warn">
+`docker system prune -a` removes all images not used by running containers, including podspawn's cached Podfile images. Those will need to be rebuilt on next use.
+</Callout>
+
+### Max containers exceeded
+
+The server config (`/etc/podspawn/config.yaml`) has a `resources.max_containers` setting (default: 50). If you're running a lot of concurrent sessions, you may hit this limit.
+
+```bash
+# Check how many podspawn containers are running
+docker ps --filter label=managed-by=podspawn | wc -l
+
+# List them with details
+sudo podspawn list
+
+# Stop a specific session
+sudo podspawn stop alice@backend
+```
+
+## Permission denied
+
+### Docker socket permissions
+
+The podspawn binary runs as the SSH user (via `command=` in authorized_keys). That user needs access to the Docker socket.
+
+```bash
+# Check socket permissions
+ls -la /var/run/docker.sock
+
+# Add the user to the docker group
+sudo usermod -aG docker alice
+
+# Or set broader permissions (less secure, fine for single-tenant)
+sudo chmod 666 /var/run/docker.sock
+```
+
+<Callout type="warn">
+Adding a user to the `docker` group is effectively giving them root access to the host. For multi-tenant deployments, consider rootless Docker or running podspawn as a dedicated service user with group access.
+</Callout>
+
+### Key file permissions
+
+SSH is strict about file permissions. Key files and directories must not be world-readable.
+
+```bash
+# Fix key directory permissions
+sudo chmod 755 /etc/podspawn/keys
+sudo chmod 644 /etc/podspawn/keys/*
+
+# Fix client-side key permissions
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_ed25519
+chmod 644 ~/.ssh/id_ed25519.pub
+```
+
+### state.db ownership
+
+The SQLite database at `/var/lib/podspawn/state.db` is created by the first user to connect. If that user's umask is restrictive, other users can't write to it.
+
+```bash
+# Check ownership
+ls -la /var/lib/podspawn/state.db*
+
+# Fix: make it group-writable
+sudo chgrp docker /var/lib/podspawn/state.db*
+sudo chmod 664 /var/lib/podspawn/state.db*
+
+# Or create a podspawn group for shared access
+sudo groupadd podspawn
+sudo chgrp podspawn /var/lib/podspawn/state.db*
+sudo chmod 664 /var/lib/podspawn/state.db*
+```
+
+<Callout type="info">
+The WAL and SHM files (`state.db-wal`, `state.db-shm`) need the same permissions as the main database file. SQLite creates them automatically, and they inherit the umask of whichever process creates them.
+</Callout>
+
+## SFTP not working
+
+SFTP works by running `sftp-server` inside the container. If it's not installed, SFTP sessions fail silently or return errors.
+
+### sftp-server not in the container image
+
+The default `ubuntu:24.04` image does not ship with `sftp-server`. You need `openssh-sftp-server` installed.
+
+```bash
+# Check if sftp-server exists in an image
+podspawn verify-image ubuntu:24.04
+```
+
+If `verify-image` reports sftp-server as missing, you have three options:
+
+1. Use a Podfile that includes the `openssh-sftp-server` package
+2. Build a custom image with it pre-installed
+3. Use podspawn's sftp-server injection (bind-mounts a static binary into the container at startup)
+
+For Podfiles, add it to the packages list:
+
+```yaml
+# podfile.yaml
+base: ubuntu:24.04
+packages:
+  - openssh-sftp-server
+```
+
+### Use verify-image to check compatibility
+
+`podspawn verify-image` checks everything a container needs for full SSH feature support:
+
+```bash
+$ sudo podspawn verify-image ubuntu:24.04
+✅ /bin/bash found
+❌ /usr/lib/openssh/sftp-server not found
+✅ locale en_US.UTF-8 available
+✅ git found
+```
+
+Run this against any custom image before deploying it. It catches issues that would otherwise surface as confusing failures during SSH sessions.
+
+## Grace period not working
+
+The grace period keeps containers alive for a short window after disconnect, so reconnecting gets you back into the same environment. If containers are being destroyed immediately or living forever, the grace period configuration might be off.
+
+### Cleanup daemon not running
+
+Grace period expiry is enforced by the cleanup daemon. Without it, containers in the grace period state sit there until someone manually cleans them up or the next connection from the same user triggers reconciliation.
+
+```bash
+# Check if the cleanup daemon is running
+ps aux | grep "podspawn cleanup"
+
+# Start it (foreground, for testing)
+sudo podspawn cleanup --daemon
+
+# Or run a single cleanup pass
+sudo podspawn cleanup
+```
+
+For production, run the daemon via systemd or a cron job:
+
+```bash
+# systemd service (recommended)
+# Create /etc/systemd/system/podspawn-cleanup.service
+# ExecStart=/usr/local/bin/podspawn cleanup --daemon --interval 60s
+
+# Or cron (simpler, slightly delayed cleanup)
+# * * * * * /usr/local/bin/podspawn cleanup
+```
+
+### Wrong configuration
+
+Check the session config in `/etc/podspawn/config.yaml`:
+
+```yaml
+session:
+  grace_period: "60s"    # how long to keep the container after last disconnect
+  max_lifetime: "8h"     # hard cap regardless of activity
+  mode: "grace-period"   # grace-period | destroy-on-disconnect | named | ttl
+```
+
+If `mode` is set to `destroy-on-disconnect`, containers are removed immediately when the last connection drops. There is no grace period in this mode.
+
+<Callout type="info">
+The grace period only starts when the *last* SSH connection to a container disconnects. If you have two terminals open and close one, the container stays running because the connection count is still 1.
+</Callout>
+
+## podspawn doctor
+
+The `doctor` command runs a series of checks against your server setup and reports what's working and what's broken. Here's what each check does and how to fix failures.
+
+### sshd configuration
+
+Verifies that `AuthorizedKeysCommand` and `AuthorizedKeysCommandUser` are set correctly in sshd_config.
+
+**If it fails:** Run `sudo podspawn server-setup` or manually add the two lines to `/etc/ssh/sshd_config` and reload sshd.
+
+### Docker connectivity
+
+Tries to ping the Docker daemon via the socket.
+
+**If it fails:** Start Docker (`sudo systemctl start docker`) and check socket permissions. The user running `doctor` needs Docker access.
+
+### Key directory
+
+Checks that `/etc/podspawn/keys/` exists and has correct permissions.
+
+**If it fails:** Create it with `sudo mkdir -p /etc/podspawn/keys && sudo chmod 755 /etc/podspawn/keys`.
+
+### State database
+
+Verifies that `/var/lib/podspawn/state.db` exists and is writable.
+
+**If it fails:** Check ownership and permissions. See the [state.db ownership](#statedb-ownership) section above.
+
+### Lock directory
+
+Checks that `/var/lib/podspawn/locks/` exists and is writable. Per-user file locks prevent race conditions when multiple SSH sessions connect simultaneously.
+
+**If it fails:** `sudo mkdir -p /var/lib/podspawn/locks && sudo chmod 777 /var/lib/podspawn/locks`.
+
+### Binary path
+
+Verifies that the podspawn binary is at the path referenced in `AuthorizedKeysCommand`.
+
+**If it fails:** Move or symlink the binary to match, or update the sshd_config path. The default is `/usr/local/bin/podspawn`.
+
+### Container cleanup
+
+Checks for orphaned containers (labeled `managed-by=podspawn` but not tracked in the state database). These can accumulate after crashes.
+
+**If it fails:** Run `sudo podspawn cleanup` to reconcile orphans. The cleanup daemon prevents this from happening in the first place.
+
+## Reading logs
+
+Podspawn writes logs to several places depending on the component. When something goes wrong, knowing where to look saves time.
+
+### sshd logs
+
+The most useful logs for authentication failures. sshd tells you exactly why a connection was rejected.
+
+```bash
+# Ubuntu/Debian
+sudo journalctl -u ssh -n 50 --no-pager
+
+# RHEL/Rocky/Fedora
+sudo journalctl -u sshd -n 50 --no-pager
+
+# Filter to a specific user
+sudo journalctl -u ssh -n 50 --no-pager | grep alice
+
+# Real-time follow
+sudo journalctl -u ssh -f
+```
+
+### Podspawn log file
+
+Podspawn uses `slog` and writes to a configurable log file. By default, it logs to stderr (which shows up in the SSH session). In production, configure a log file:
+
+```yaml
+# /etc/podspawn/config.yaml
+log:
+  file: /var/log/podspawn/podspawn.log
+```
+
+```bash
+# Read recent logs
+tail -100 /var/log/podspawn/podspawn.log
+
+# Follow in real-time
+tail -f /var/log/podspawn/podspawn.log
+
+# Search for errors
+grep -i error /var/log/podspawn/podspawn.log
+```
+
+<Callout type="info">
+If `log.file` is not set, podspawn logs to stderr. During SSH sessions, this means log lines like `INFO creating container` appear in the user's terminal. Setting a log file path fixes this.
+</Callout>
+
+### Audit log
+
+The audit log is a separate JSON-lines file that records structured events: connections, disconnections, container creates/destroys, and commands executed.
+
+```yaml
+# /etc/podspawn/config.yaml
+log:
+  audit_log: /var/log/podspawn/audit.jsonl
+```
+
+```bash
+# View recent events
+tail -20 /var/log/podspawn/audit.jsonl | jq .
+
+# Filter by event type
+cat /var/log/podspawn/audit.jsonl | jq 'select(.event == "connect")'
+
+# Filter by user
+cat /var/log/podspawn/audit.jsonl | jq 'select(.user == "alice")'
+```
+
+The audit log is optional. If `log.audit_log` is not set, no audit events are written and there is no performance overhead.
+
+### Docker logs
+
+For container-level issues (processes crashing inside the container, OOM kills), check Docker's logs:
+
+```bash
+# List podspawn containers
+docker ps --filter label=managed-by=podspawn
+
+# View logs for a specific container
+docker logs podspawn-alice-backend
+
+# Check if a container was OOM-killed
+docker inspect podspawn-alice-backend | jq '.[0].State.OOMKilled'
+```
