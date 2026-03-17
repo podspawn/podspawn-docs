@@ -5,19 +5,23 @@ description: Common issues and how to fix them
 
 This page covers the most common issues people hit when setting up and running podspawn, along with concrete fixes. When in doubt, start with `podspawn doctor` at the bottom of this page.
 
-## Password prompt instead of key authentication
+<Callout type="info">
+Most issues on this page are **server mode** problems (SSH, sshd, keys, user accounts). If you're using local mode (`podspawn create`, `podspawn shell`, `podspawn run`), skip to [Container won't start](#container-wont-start) or [podspawn doctor](#podspawn-doctor).
+</Callout>
 
-If SSH asks for a password instead of using your key, something is intercepting or misconfiguring the auth flow. Walk through these checks in order.
+## Password prompt instead of key authentication (server mode)
+
+If SSH asks for a password instead of using your key, something is intercepting or misconfiguring the auth flow on the server. Walk through these checks in order.
 
 ### Check 1: Is something else on port 22?
 
-On macOS, OrbStack Linux machines bind to port 22 and intercept SSH connections before they reach your system's sshd. Podspawn's `AuthorizedKeysCommand` never runs because OrbStack handles the connection.
+Another process may be bound to port 22, intercepting SSH connections before they reach sshd. Podspawn's `AuthorizedKeysCommand` never runs because the other process handles the connection.
 
 ```bash
 sudo lsof -i :22 -P -n | head -5
 ```
 
-If you see something other than `/usr/sbin/sshd`, that's your problem. Stop the conflicting service (e.g., `orb stop --all` for OrbStack Linux machines) and verify port 22 is free before retrying. For local development, you can skip SSH entirely and use `podspawn shell` instead.
+If you see something other than `/usr/sbin/sshd`, that's your problem. Stop the conflicting service and verify port 22 is free before retrying.
 
 ### Check 2: Can nobody read the key files?
 
@@ -27,7 +31,7 @@ Podspawn's `AuthorizedKeysCommand` runs as the `nobody` user. If `nobody` can't 
 ls -la /etc/podspawn/keys/
 ```
 
-The directory needs to be readable and traversable by `nobody` (mode `0755`). Key files inside need to be readable (mode `0644` or `0600` with appropriate ownership).
+The directory needs mode `0755` so `nobody` can traverse it. Key files inside need to be readable by `nobody` (mode `0644`).
 
 ### Check 3: Was sshd reloaded after config change?
 
@@ -65,9 +69,9 @@ See the [locked account section](#locked-user-account) below for more detail.
 
 ---
 
-## Can't SSH in
+## Can't SSH in (server mode)
 
-SSH authentication failures are the most common issue during initial setup. The symptoms are usually `Permission denied (publickey)` or a connection that hangs and times out.
+SSH authentication failures are the most common issue during initial server setup. The symptoms are usually `Permission denied (publickey)` or a connection that hangs and times out.
 
 ### Locked user account
 
@@ -272,8 +276,8 @@ SSH is strict about file permissions. Key files and directories must not be worl
 
 ```bash
 # Fix key directory permissions
-sudo chmod 700 /etc/podspawn/keys
-sudo chmod 600 /etc/podspawn/keys/*
+sudo chmod 755 /etc/podspawn/keys
+sudo chmod 644 /etc/podspawn/keys/*
 
 # Fix client-side key permissions
 chmod 700 ~/.ssh
@@ -303,9 +307,9 @@ sudo chmod 664 /var/lib/podspawn/state.db*
 The WAL and SHM files (`state.db-wal`, `state.db-shm`) need the same permissions as the main database file. SQLite creates them automatically, and they inherit the umask of whichever process creates them.
 </Callout>
 
-## SFTP not working
+## SFTP not working (server mode)
 
-SFTP works by running `sftp-server` inside the container. If it's not installed, SFTP sessions fail silently or return errors.
+In server mode, SFTP works by running `sftp-server` inside the container. If it's not installed, SFTP sessions fail silently or return errors.
 
 ### sftp-server not in the container image
 
@@ -412,7 +416,7 @@ Tries to ping the Docker daemon via the socket.
 
 Checks that `/etc/podspawn/keys/` exists and has correct permissions.
 
-**If it fails:** Create it with `sudo mkdir -p /etc/podspawn/keys && sudo chmod 700 /etc/podspawn/keys`.
+**If it fails:** Create it with `sudo mkdir -p /etc/podspawn/keys && sudo chmod 755 /etc/podspawn/keys`.
 
 ### State database
 

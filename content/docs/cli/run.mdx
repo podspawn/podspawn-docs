@@ -21,7 +21,7 @@ podspawn run <name> [--image IMAGE]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--image` | `ubuntu:24.04` | Container image to use |
+| `--image` | (from config) | Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`. |
 
 ## Examples
 
@@ -45,4 +45,4 @@ No state is persisted after disconnect. If you need a machine that survives disc
 
 The container lifecycle is tied to the session, not the TCP connection. If your network drops momentarily, podspawn does not immediately kill the container. The destroy happens when the session ends, which is when the shell process inside the container exits.
 
-This is the same destroy-on-disconnect mode used by the SSH path when `destroy_on_disconnect` is set in the server config.
+In server mode, `podspawn spawn` uses the same destroy-on-disconnect logic when configured.

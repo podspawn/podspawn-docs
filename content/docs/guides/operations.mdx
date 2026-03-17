@@ -64,7 +64,7 @@ chown root:root /var/lib/podspawn/state.db
 
 # Restore keys
 cp -a /backup/podspawn/20260315/keys/ /etc/podspawn/keys/
-chmod 700 /etc/podspawn/keys/
+chmod 755 /etc/podspawn/keys/
 
 # Restore config
 cp /backup/podspawn/20260315/config.yaml /etc/podspawn/config.yaml

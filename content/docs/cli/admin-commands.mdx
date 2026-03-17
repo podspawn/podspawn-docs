@@ -1,21 +1,31 @@
 ---
 title: Admin Commands
-description: CLI reference for podspawn session management and monitoring commands
+description: CLI reference for podspawn machine management and monitoring commands
 ---
 
-Admin commands help operators monitor sessions, stop containers, run cleanup, and check system health.
+These commands manage machines and monitor system health. `list` and `stop` work in both local and server mode. The rest (`cleanup`, `status`, `doctor`, etc.) are server-side administration commands.
 
 ## list
 
-Lists all active sessions tracked in the state database.
+Lists all machines (local mode) or active sessions (server mode) tracked in the state database.
 
 ```bash
 podspawn list
 ```
 
-### Output format
+### Local mode output
 
-Tab-separated columns:
+In local mode, `list` shows machines with their name, status, image, container ID, and age:
+
+```
+NAME       STATUS   IMAGE           CONTAINER                AGE
+mydev      running  ubuntu:24.04    podspawn-alice-mydev     2h30m
+scratch    running  alpine:3.20     podspawn-alice-scratch   5m
+```
+
+### Server mode output
+
+In server mode, `list` shows per-user sessions with connection counts and lifetime tracking:
 
 | Column | Description |
 |--------|-------------|
@@ -27,8 +37,6 @@ Tab-separated columns:
 | AGE | Time since session was created (e.g., `2h30m`, `45s`) |
 | LIFETIME LEFT | Time until max lifetime expires, or `expired` |
 
-### Example output
-
 ```
 USER     PROJECT     CONTAINER                 STATUS        CONNS  AGE     LIFETIME LEFT
 alice    backend     podspawn-alice-backend    running       2      1h30m   6h30m
@@ -36,23 +44,34 @@ bob      (default)   podspawn-bob              grace_period  0      45m     7h15
 carol    frontend    podspawn-carol-frontend   running       1      5m      7h55m
 ```
 
-When no sessions exist:
+When no machines exist:
 
 ```
-No active sessions.
+No machines.
 ```
 
 ---
 
 ## stop
 
-Stops a session and destroys its container, companion services, and network.
+Stops a machine and destroys its container, companion services, and network.
 
 ```bash
+podspawn stop <name>
 podspawn stop <user[@project]>
 ```
 
 ### Argument format
+
+The argument is interpreted differently depending on mode:
+
+**Local mode:** The argument is the machine name. The current `$USER` is used automatically.
+
+| Format | Meaning |
+|--------|---------|
+| `mydev` | Stop the machine named "mydev" |
+
+**Server mode:** The argument is `user[@project]`.
 
 | Format | Meaning |
 |--------|---------|
@@ -69,23 +88,26 @@ podspawn stop <user[@project]>
 ### Examples
 
 ```bash
-# Stop alice's default session
+# Local mode: stop a machine by name
+podspawn stop mydev
+
+# Server mode: stop alice's default session
 podspawn stop alice
 
-# Stop alice's backend project session
+# Server mode: stop alice's backend project session
 podspawn stop alice@backend
 ```
 
 ### Output
 
 ```
-Destroyed session: alice@backend (container podspawn-alice-backend)
+destroyed machine "mydev" (podspawn-alice-mydev)
 ```
 
-If no active session exists for the given user/project:
+If no active machine exists:
 
 ```
-Error: no active session for alice@backend
+Error: no active machine "mydev"
 ```
 
 <Callout type="warn">
@@ -383,23 +405,23 @@ Checks that `/etc/podspawn` exists and is a directory.
 
 #### key directory
 
-Checks that the key directory (`/etc/podspawn/keys/` by default) exists and has permissions set to `0700`.
+Checks that the key directory (`/etc/podspawn/keys/` by default) exists and has permissions set to `0755`.
 
 | Status | Meaning |
 |--------|---------|
 | pass | Directory exists with correct permissions |
-| warn | Directory exists but permissions are not `0700` |
+| warn | Directory exists but permissions are not `0755` |
 | fail | Directory does not exist |
 
 **Fix:** Create the directory and set permissions:
 
 ```bash
 sudo mkdir -p /etc/podspawn/keys
-sudo chmod 700 /etc/podspawn/keys
+sudo chmod 755 /etc/podspawn/keys
 ```
 
-<Callout type="warn">
-The key directory stores user public keys. Permissions looser than `0700` allow other users on the system to read or modify SSH keys, which is a security risk.
+<Callout type="info">
+The key directory must be readable by the `AuthorizedKeysCommandUser` (typically `nobody`). sshd rejects the command if it cannot traverse the directory. Individual key files contain public keys only, so read access is not a security concern.
 </Callout>
 
 #### state directory
@@ -476,51 +498,3 @@ podspawn remove-project backend
 # note: image podspawn/backend:podfile-abc123 still exists; run 'docker rmi ...' to remove it
 ```
 
----
-
-## update
-
-Self-updates the podspawn binary to the latest release from GitHub.
-
-```bash
-podspawn update
-```
-
-### Flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--check` | `false` | Only check for updates, don't download |
-
-### What it does
-
-1. Queries the GitHub API for the latest release tag
-2. Compares with the current version
-3. Downloads the correct binary for your OS and architecture
-4. Replaces the current binary atomically
-
-Active SSH sessions are not affected by the update. The new binary is used for the next `spawn` invocation.
-
-### Examples
-
-```bash
-# Update to latest
-podspawn update
-
-# Check without downloading
-podspawn update --check
-```
-
-### Output
-
-```
-current: v0.1.0, latest: v0.2.0
-downloading v0.2.0...
-updated to v0.2.0
-```
-
-If already on the latest:
-
-```
-already on latest version (v0.2.0)
-```

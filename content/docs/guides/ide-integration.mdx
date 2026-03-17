@@ -3,9 +3,35 @@ title: IDE Integration
 description: Using VS Code Remote SSH, JetBrains Gateway, and Cursor Remote with podspawn
 ---
 
-Because podspawn provides a real SSH connection to a real Linux container, remote IDE features work without any special integration. The IDE connects via SSH, syncs files via SFTP, runs commands via exec channels, and forwards ports. Podspawn handles all of this through the standard session router.
+Podspawn containers are standard Docker containers, so they work with IDE remote development features in both local and server mode.
 
-## How IDEs use SSH
+## Local mode
+
+In local mode, podspawn containers are regular Docker containers on your machine. You can use them with any tool that talks to Docker.
+
+### VS Code Dev Containers
+
+The [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension can attach to a running podspawn container:
+
+1. Create a container: `podspawn create dev`
+2. In VS Code, open the Command Palette and select **Dev Containers: Attach to Running Container**
+3. Select the podspawn container (it will be named `dev` or whatever you passed to `create`)
+
+You get the full VS Code experience: terminal, file explorer, extensions, port forwarding, all running inside the container.
+
+Alternatively, use `podspawn shell dev` from any terminal (including VS Code's integrated terminal) for a direct shell.
+
+### JetBrains and Cursor
+
+JetBrains Gateway and Cursor can also attach to local Docker containers. Use the Docker connection type instead of SSH.
+
+---
+
+## Server mode
+
+In server mode, podspawn provides a real SSH connection to a Linux container on a shared server. Remote IDE features work without any special integration because the IDE connects via SSH, syncs files via SFTP, runs commands via exec channels, and forwards ports. Podspawn handles all of this through the standard session router.
+
+### How IDEs use SSH
 
 All remote IDEs follow the same pattern:
 

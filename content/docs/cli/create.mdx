@@ -21,7 +21,7 @@ podspawn create <name> [--image IMAGE]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--image` | `ubuntu:24.04` | Container image to use |
+| `--image` | (from config) | Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`. |
 
 ## Examples
 
@@ -37,9 +37,9 @@ $ podspawn create dev --image alpine:3.20
 
 1. Pulls the image if not already cached locally
 2. Creates a container with `sleep infinity` as the entrypoint to keep it alive
-3. Registers the machine in `~/.podspawn/state.db`
+3. Registers the machine in the state database
 
-The machine keeps running until you stop it. Attach to it with `podspawn shell`, or list your machines with `podspawn ps`.
+The machine keeps running until you stop it. Attach to it with `podspawn shell`, or list your machines with `podspawn list`.
 
 ## Lifecycle
 

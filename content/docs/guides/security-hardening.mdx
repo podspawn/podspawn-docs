@@ -3,7 +3,9 @@ title: Security Hardening
 description: Default security posture and options for hardening podspawn container environments
 ---
 
-Podspawn's architecture is inherently more secure than alternatives because it never touches the SSH protocol. By delegating authentication and encryption to native sshd, it eliminates an entire class of vulnerabilities (like CVE-2024-45337, an authentication bypass in Go's `x/crypto/ssh` library that affected custom SSH servers).
+Podspawn containers ship with a hardened security baseline in both local and server mode. The settings below apply to all containers regardless of how they're created.
+
+In server mode, podspawn delegates authentication and encryption to native sshd rather than implementing its own SSH server. This eliminates an entire class of vulnerabilities (like CVE-2024-45337, an authentication bypass in Go's `x/crypto/ssh` library that affected custom SSH servers).
 
 This guide covers the default security configuration and options for further hardening.
 
