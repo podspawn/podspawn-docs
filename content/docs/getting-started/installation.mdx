@@ -23,7 +23,28 @@ The fastest path. No root, no SSH, no sshd configuration. Just Docker and the bi
 curl -sSfL https://podspawn.dev/up | bash
 ```
 
-Choose **Local** when prompted. The script installs the binary and verifies Docker is reachable.
+Choose **Local** when prompted. The script installs the binary, verifies Docker is reachable, and runs an optional setup wizard.
+
+#### Setup wizard
+
+The wizard is all menu-based (no typing required). It asks:
+
+1. **Use case** -- web dev, systems programming, data science, or general
+2. **Shell** -- bash, zsh, or fish
+3. **Base image** -- Ubuntu 24.04, Debian 12, or Alpine 3.20
+4. **Database** -- none, PostgreSQL, MySQL, or Redis only
+5. **Cache** -- Redis yes/no (if you picked a database)
+
+Based on your choices, it generates two files:
+
+- `~/.podspawn/config.yaml` -- local defaults (image, shell, cpus, memory, lifecycle)
+- `~/.podspawn/podfile.yaml` -- a default Podfile with packages and services matching your picks
+
+Hit Enter at each prompt to accept the defaults (Ubuntu 24.04, bash, no database). You can skip the wizard entirely by answering "n" when asked "Set up now?".
+
+<Callout type="info">
+You can edit these files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
+</Callout>
 
 ### Manual install
 
@@ -123,7 +144,7 @@ sudo podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
 sudo podspawn doctor
 ```
 
-Checks Docker, sshd, permissions, disk space, and image cache. Fix any failures before proceeding.
+Since `server-setup` has been run, doctor runs all 11 checks: Docker, sshd, keys, permissions, disk space, and image cache. Fix any failures before proceeding.
 
 #### Step 5: Test
 
@@ -240,6 +261,13 @@ podspawn update --check
 | Path | Purpose |
 |---|---|
 | `/usr/local/bin/podspawn` | Single binary |
+
+### Local mode (created by setup wizard)
+
+| Path | Purpose |
+|---|---|
+| `~/.podspawn/config.yaml` | Local defaults (image, shell, resources, lifecycle) |
+| `~/.podspawn/podfile.yaml` | Default Podfile (packages, services from wizard choices) |
 
 ### Server mode (created by `server-setup`)
 

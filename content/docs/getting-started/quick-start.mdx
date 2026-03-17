@@ -8,7 +8,7 @@ description: From zero to a dev container in under a minute
 Three commands. No server, no SSH, no configuration.
 
 ```bash
-# Install
+# Install (includes an optional setup wizard)
 curl -sSfL https://podspawn.dev/up | bash
 
 # Create a container
@@ -17,6 +17,15 @@ podspawn create dev
 # Get a shell
 podspawn shell dev
 ```
+
+The installer runs a setup wizard that asks about your use case, shell, base image, and services. Every question is a numbered menu, so there's nothing to type. Hit Enter at each prompt to accept the defaults, or answer "n" to skip the wizard entirely.
+
+The wizard creates two files:
+
+- **`~/.podspawn/config.yaml`** -- local defaults (image, shell, cpus, memory)
+- **`~/.podspawn/podfile.yaml`** -- a starting Podfile with packages and services
+
+You can edit these files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
 
 You're inside a container. Do your work, then exit. The container keeps running until you stop it:
 
