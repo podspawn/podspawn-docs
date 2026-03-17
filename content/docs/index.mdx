@@ -24,7 +24,7 @@ ssh alice@work.pod  ->  container created  ->  work  ->  exit  ->  container des
 
 ```bash
 # Server setup (30 seconds)
-curl -sSf https://podspawn.dev/install.sh | sh
+curl -sSfL https://podspawn.dev/install.sh | sh
 sudo podspawn server-setup
 sudo podspawn add-user alice --github alice
 

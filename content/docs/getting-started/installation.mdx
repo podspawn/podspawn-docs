@@ -28,7 +28,7 @@ There is no separate server package or client package. The same `podspawn` binar
 One command installs the binary, configures sshd, registers your SSH keys, and runs diagnostics:
 
 ```bash
-curl -sSf https://podspawn.dev/up | bash
+curl -sSfL https://podspawn.dev/up | bash
 ```
 
 The script auto-detects whether you're on a server (sshd + Docker present) or a client machine and walks you through setup interactively.
@@ -54,7 +54,7 @@ If you prefer step-by-step control:
 ### Step 1: Install the binary
 
 ```bash
-curl -sSf https://podspawn.dev/install.sh | sh
+curl -sSfL https://podspawn.dev/install.sh | sh
 ```
 
 Or from source:
@@ -136,14 +136,14 @@ ssh alice@yourserver.com  # works with any SSH client
 ### macOS / Linux
 
 ```bash
-curl -sSf https://podspawn.dev/up | bash
+curl -sSfL https://podspawn.dev/up | bash
 ```
 
 Or install manually:
 
 ```bash
 # Install binary
-curl -sSf https://podspawn.dev/install.sh | sh
+curl -sSfL https://podspawn.dev/install.sh | sh
 
 # Configure SSH client
 podspawn setup
