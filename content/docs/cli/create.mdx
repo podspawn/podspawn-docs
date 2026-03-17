@@ -1,0 +1,53 @@
+---
+title: podspawn create
+description: Create a persistent named machine
+---
+
+Creates a persistent named machine. The container stays alive until you explicitly stop it with `podspawn stop`.
+
+## Usage
+
+```bash
+podspawn create <name> [--image IMAGE]
+```
+
+## Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `name` | Yes | Name for the machine. Used to reference it in other commands. |
+
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--image` | `ubuntu:24.04` | Container image to use |
+
+## Examples
+
+```bash
+# Create a machine with the default image
+$ podspawn create dev
+
+# Create a machine with a specific image
+$ podspawn create dev --image alpine:3.20
+```
+
+## What happens
+
+1. Pulls the image if not already cached locally
+2. Creates a container with `sleep infinity` as the entrypoint to keep it alive
+3. Registers the machine in `~/.podspawn/state.db`
+
+The machine keeps running until you stop it. Attach to it with `podspawn shell`, or list your machines with `podspawn ps`.
+
+## Lifecycle
+
+```
+create  -->  running  -->  stop  -->  gone
+                ^                      |
+                |    start (future)    |
+                +----------------------+
+```
+
+Unlike `podspawn run`, created machines survive disconnects. They are not ephemeral.

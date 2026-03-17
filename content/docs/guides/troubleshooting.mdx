@@ -17,7 +17,7 @@ On macOS, OrbStack Linux machines bind to port 22 and intercept SSH connections 
 sudo lsof -i :22 -P -n | head -5
 ```
 
-If you see something other than `/usr/sbin/sshd`, that's your problem. See the [OrbStack guide](/docs/guides/orbstack) for how to fix this on macOS.
+If you see something other than `/usr/sbin/sshd`, that's your problem. Stop the conflicting service (e.g., `orb stop --all` for OrbStack Linux machines) and verify port 22 is free before retrying. For local development, you can skip SSH entirely and use `podspawn shell` instead.
 
 ### Check 2: Can nobody read the key files?
 

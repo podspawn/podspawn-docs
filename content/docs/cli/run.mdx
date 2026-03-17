@@ -1,0 +1,48 @@
+---
+title: podspawn run
+description: Create and attach to an ephemeral machine
+---
+
+Creates an ephemeral machine, attaches to it, and destroys it when you disconnect. The podspawn equivalent of `docker run --rm`.
+
+## Usage
+
+```bash
+podspawn run <name> [--image IMAGE]
+```
+
+## Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `name` | Yes | Name for the machine. Exists only for the duration of the session. |
+
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--image` | `ubuntu:24.04` | Container image to use |
+
+## Examples
+
+```bash
+# Spin up a throwaway machine
+$ podspawn run scratch
+
+# Use a specific image
+$ podspawn run test --image node:22
+```
+
+## What happens
+
+1. Pulls the image if not already cached locally
+2. Creates a container and attaches an interactive shell
+3. When you disconnect (exit the shell or close the terminal), the container is destroyed
+
+No state is persisted after disconnect. If you need a machine that survives disconnects, use `podspawn create` instead.
+
+## Destroy-on-disconnect
+
+The container lifecycle is tied to the session, not the TCP connection. If your network drops momentarily, podspawn does not immediately kill the container. The destroy happens when the session ends, which is when the shell process inside the container exits.
+
+This is the same destroy-on-disconnect mode used by the SSH path when `destroy_on_disconnect` is set in the server config.

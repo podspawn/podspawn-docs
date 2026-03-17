@@ -1,42 +1,43 @@
 ---
 title: podspawn shell
-description: Attach to a container directly via Docker exec, bypassing SSH
+description: Attach to a local machine with an interactive shell
 ---
 
-Connects to a podspawn container using Docker exec instead of SSH. Useful when sshd isn't available or something else is occupying port 22 (like OrbStack on macOS).
+Attaches to a running podspawn machine with an interactive shell. This is the primary way to connect to local machines.
 
 ## Usage
 
 ```bash
-podspawn shell [user@]<name>
+podspawn shell <name>
+podspawn shell <user@name>
 ```
 
 ## Arguments
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `name` | Yes | Project or container name to attach to |
+| `name` | Yes | Machine name to attach to |
 | `user` | No | Username prefix, same `user@host` format as other commands |
-
-## When to use this
-
-- **OrbStack is on port 22.** OrbStack Linux machines grab port 22 on macOS, blocking podspawn's sshd hook. `podspawn shell` sidesteps this entirely. See the [OrbStack guide](/docs/guides/orbstack) for details.
-- **sshd isn't configured.** If you're testing podspawn without running `server-setup`, `shell` lets you interact with containers immediately.
-- **Quick debugging.** Sometimes you just want a shell in a container without setting up SSH keys.
 
 ## Examples
 
 ```bash
-# Attach to a project container
-$ podspawn shell myproject
+# Attach to a machine
+$ podspawn shell dev
 
 # Attach as a specific user
 $ podspawn shell alice@backend
 ```
 
+## How it works
+
+`podspawn shell` uses Docker exec to open a shell inside the container. No SSH is involved, so there is nothing to configure and no port conflicts to worry about.
+
+For local development, this is all you need. SSH is only required for remote access or IDE integration (VS Code Remote, Cursor, JetBrains Gateway).
+
 ## Limitations
 
-`podspawn shell` uses Docker exec, not SSH. This means several SSH-dependent features are unavailable:
+Because `podspawn shell` uses Docker exec instead of SSH, some features are unavailable:
 
 | Feature | Available? | Workaround |
 |---------|-----------|-------------|
@@ -49,4 +50,4 @@ $ podspawn shell alice@backend
 | JetBrains Gateway | No | Use full SSH setup |
 | SSH agent forwarding | No | Mount `SSH_AUTH_SOCK` manually |
 
-For full IDE and file transfer support, you need a real SSH connection. See the [OrbStack guide](/docs/guides/orbstack) for how to free port 22 on macOS.
+For full IDE and file transfer support, you need a real SSH connection via `podspawn ssh` or direct SSH to the server.
