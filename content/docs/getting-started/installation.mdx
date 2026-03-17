@@ -67,7 +67,7 @@ Or via package manager:
 
 ```bash
 # Homebrew (macOS/Linux)
-brew install podspawn/tap/podspawn
+brew install --cask podspawn/tap/podspawn
 
 # Debian/Ubuntu (.deb)
 # Download from GitHub releases:
@@ -161,6 +161,14 @@ Host *.pod
 ```
 
 Download the binary from [GitHub releases](https://github.com/podspawn/podspawn/releases) and place it in your PATH.
+
+<Callout type="warn">
+**macOS Gatekeeper:** If you install manually (not via Homebrew), macOS may block the binary. Either allow it in **System Settings → Privacy & Security**, or remove the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine /usr/local/bin/podspawn
+```
+</Callout>
 
 ### Configure server routing
 
