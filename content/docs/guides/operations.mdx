@@ -218,7 +218,7 @@ resources:
   max_per_user: 3       # per-user session limit
 ```
 
-`podspawn doctor` checks disk space and warns when free space drops below 5 GB.
+`podspawn doctor` checks disk space and warns when free space drops below 5 GB. On a server install, it also validates sshd configuration, key directory permissions, and other server-specific settings (11 checks total vs. 6 in local mode).
 
 ## Log rotation
 

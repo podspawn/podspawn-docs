@@ -398,9 +398,17 @@ The grace period only starts when the *last* SSH connection to a container disco
 
 ## podspawn doctor
 
-The `doctor` command runs a series of checks against your server setup and reports what's working and what's broken. Here's what each check does and how to fix failures.
+The `doctor` command runs a series of checks and reports what's working and what's broken. It adapts based on your install type: without `/etc/podspawn/config.yaml` (local mode), it runs 6 checks covering Docker and local state. With the config file present (after `server-setup`), it runs all 11 checks including sshd validation.
 
-### sshd configuration
+```bash
+# Local mode: 6 checks (Docker, state, disk, image)
+podspawn doctor
+
+# Server mode: 11 checks (adds sshd, keys, config dir)
+sudo podspawn doctor
+```
+
+### sshd configuration (server only)
 
 Verifies that `AuthorizedKeysCommand` and `AuthorizedKeysCommandUser` are set correctly in sshd_config.
 
@@ -486,7 +494,7 @@ grep -i error /var/log/podspawn/podspawn.log
 ```
 
 <Callout type="info">
-If `log.file` is not set, podspawn logs to stderr. During SSH sessions, this means log lines like `INFO creating container` appear in the user's terminal. Setting a log file path fixes this.
+If `log.file` is not set, podspawn logs to stderr. In server mode, this means log output could leak into the user's SSH session. Setting a log file path prevents this. In local mode, the CLI no longer prints INFO lines; commands show a spinner and a checkmark on completion.
 </Callout>
 
 ### Audit log

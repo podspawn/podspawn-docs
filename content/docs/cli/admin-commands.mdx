@@ -3,7 +3,7 @@ title: Admin Commands
 description: CLI reference for podspawn machine management and monitoring commands
 ---
 
-These commands manage machines and monitor system health. `list` and `stop` work in both local and server mode. The rest (`cleanup`, `status`, `doctor`, etc.) are server-side administration commands.
+These commands manage machines and monitor system health. `list`, `stop`, and `doctor` work in both local and server mode. The rest (`cleanup`, `status`, etc.) are server-side administration commands.
 
 ## list
 
@@ -15,13 +15,15 @@ podspawn list
 
 ### Local mode output
 
-In local mode, `list` shows machines with their name, status, image, container ID, and age:
+In local mode, `list` shows machines with their name, status, image, and age. No internal container names are shown:
 
 ```
-NAME       STATUS   IMAGE           CONTAINER                AGE
-mydev      running  ubuntu:24.04    podspawn-alice-mydev     2h30m
-scratch    running  alpine:3.20     podspawn-alice-scratch   5m
+NAME       STATUS         IMAGE           AGE
+mydev      running        ubuntu:24.04    2h30m
+scratch    running        alpine:3.20     5m
 ```
+
+Headers are bold and status is color-coded in the terminal: green for `running`, yellow for `grace period`.
 
 ### Server mode output
 
@@ -101,7 +103,7 @@ podspawn stop alice@backend
 ### Output
 
 ```
-destroyed machine "mydev" (podspawn-alice-mydev)
+✓ Stopped machine mydev
 ```
 
 If no active machine exists:
@@ -305,15 +307,43 @@ With `--force`, all active sessions are immediately destroyed. Connected SSH ses
 
 ## doctor
 
-Runs a series of preflight checks to verify that the server is correctly configured for podspawn. Useful after initial setup, before upgrades, or when debugging connection issues.
+Runs preflight checks to verify that podspawn is correctly configured. The checks adapt based on what's installed: if `/etc/podspawn/config.yaml` exists (i.e., `server-setup` has been run), doctor runs the full set of checks including sshd validation. Without the server config, it only checks Docker and local state.
 
 ```bash
 podspawn doctor
 ```
 
-### Example output
+### Adaptive checks
+
+| Mode | When | Checks |
+|------|------|--------|
+| **Local** | `/etc/podspawn/config.yaml` does not exist | Docker daemon, Docker socket, state directory, lock directory, disk space, default image (6 checks) |
+| **Server** | `/etc/podspawn/config.yaml` exists | All local checks plus OpenSSH version, sshd config, AuthorizedKeysCommand, podspawn config dir, key directory (11 checks) |
+
+### Local mode output
+
+After a local-only install (no `server-setup`):
 
 ```
+podspawn doctor
+
+  [pass] Docker daemon
+  [pass] Docker socket
+  [pass] state directory
+  [pass] lock directory
+  [pass] disk space
+  [pass] default image
+
+6 passed, 0 warnings, 0 failed
+```
+
+### Server mode output
+
+After running `server-setup`:
+
+```
+podspawn doctor
+
   [pass] Docker daemon
   [pass] Docker socket
   [pass] OpenSSH version
@@ -324,9 +354,9 @@ podspawn doctor
   [pass] state directory
   [pass] lock directory
   [pass] disk space
-  [warn] default image: ubuntu:24.04 not cached; first connection will pull it (slow)
+  [pass] default image
 
-10 passed, 1 warned, 0 failed
+11 passed, 0 warnings, 0 failed
 ```
 
 ### Checks
@@ -354,7 +384,7 @@ Checks that `/var/run/docker.sock` exists and has appropriate permissions.
 
 **Fix:** If the socket is missing, start Docker. If permissions are wrong, add the podspawn user to the `docker` group (`usermod -aG docker <user>`).
 
-#### OpenSSH version
+#### OpenSSH version (server only)
 
 Detects the installed OpenSSH version by running `sshd -V` (falling back to `ssh -V`).
 
@@ -365,7 +395,7 @@ Detects the installed OpenSSH version by running `sshd -V` (falling back to `ssh
 
 **Fix:** Install `openssh-server`. Podspawn requires OpenSSH 7.4+ for the `restrict` keyword in authorized_keys.
 
-#### sshd config valid
+#### sshd config valid (server only)
 
 Runs `sshd -t` to validate the current sshd configuration file.
 
@@ -376,7 +406,7 @@ Runs `sshd -t` to validate the current sshd configuration file.
 
 **Fix:** Check the sshd_config syntax errors reported by `sshd -t` and correct them. Common causes: duplicate directives, invalid keywords, bad `Match` blocks.
 
-#### AuthorizedKeysCommand
+#### AuthorizedKeysCommand (server only)
 
 Reads the sshd_config file and checks for an `AuthorizedKeysCommand` directive that references `podspawn`.
 
@@ -392,7 +422,7 @@ AuthorizedKeysCommand /usr/local/bin/podspawn auth-keys %u %t %k
 AuthorizedKeysCommandUser nobody
 ```
 
-#### podspawn config dir
+#### podspawn config dir (server only)
 
 Checks that `/etc/podspawn` exists and is a directory.
 
@@ -403,7 +433,7 @@ Checks that `/etc/podspawn` exists and is a directory.
 
 **Fix:** Run `podspawn server-setup`, which creates all required directories.
 
-#### key directory
+#### key directory (server only)
 
 Checks that the key directory (`/etc/podspawn/keys/` by default) exists and has permissions set to `0755`.
 
