@@ -1,46 +1,74 @@
 ---
 title: Introduction
-description: Ephemeral SSH dev containers via native sshd
+description: Ephemeral dev containers that work locally and remotely
 ---
 
-Podspawn is a single Go binary that hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full ephemeral container platform.
+Podspawn is a single binary for ephemeral dev containers. It works two ways: locally via Docker exec (no SSH, no root) and remotely via native sshd (zero client install). One tool, two modes, zero friction.
 
-## The core insight
+```bash
+# Local -- create a container and drop in
+podspawn create dev && podspawn shell dev
 
-You don't need a custom SSH server. Every existing tool in this space -- ContainerSSH, Coder, DevPod -- builds or embeds its own SSH daemon. Podspawn takes a fundamentally different approach: it lets OpenSSH handle the protocol and focuses exclusively on container lifecycle.
-
+# Server -- SSH in, land in a container
+ssh alice@devbox.company.com
 ```
-ssh alice@work.pod  ->  container created  ->  work  ->  exit  ->  container destroyed
-```
+
+## Two modes, same tool
+
+**Local mode** talks to Docker directly. No SSH, no sshd, no root, no key management. If `docker ps` works, podspawn works. Named containers persist across shells, or use `podspawn run scratch` for one-shot throwaways.
+
+**Server mode** hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full ephemeral container platform. Users SSH in with any client and land in isolated containers. Every SSH feature works -- port forwarding, SCP, SFTP, VS Code Remote -- because OpenSSH handles the protocol.
+
+Same binary, same Podfile environments, same container lifecycle. The only difference is how you get in.
 
 ## What makes it different
 
-- **Native sshd integration** -- not a replacement, an extension. Two lines of config, every SSH feature works.
-- **Podfile environments** -- declarative YAML for dev environments with packages, companion services, dotfiles, and lifecycle hooks.
+- **Podfile environments** -- declarative YAML for packages, companion services, dotfiles, and lifecycle hooks. Define your dev environment once, reproduce it anywhere.
+- **Named machines** -- `podspawn create backend`, `podspawn shell backend`. Containers have names, not hex IDs.
 - **Security by default** -- cap-drop ALL, no-new-privileges, PID limits, per-user network isolation, optional gVisor.
-- **AI agent ready** -- disposable environments for autonomous coding agents. SSH in, run tests, exit. No cleanup.
+- **AI agent ready** -- disposable environments for autonomous coding agents. Create, run tests, destroy. No cleanup.
+- **Cross-platform** -- macOS, Linux, Windows. Works with OrbStack, Docker Desktop, Colima, or bare Docker.
+- **Single binary, open source** -- no daemon in local mode, no custom SSH server in server mode. AGPL-3.0.
+
+## Why not...
+
+**Docker directly?** You can, but you'll reinvent named machines, Podfile-driven environments, companion services, and lifecycle management. Podspawn is the porcelain over Docker's plumbing.
+
+**OrbStack?** Excellent on macOS, but macOS-only and closed source. Podspawn is cross-platform, Podfile-driven, has server mode for teams, and is open source.
+
+**DevPod?** Similar goals, heavier approach. DevPod runs a daemon, requires a provider system, and doesn't have transparent SSH server mode. Podspawn is a single binary with no moving parts.
+
+**Dev Containers / devcontainer CLI?** Tightly coupled to VS Code. Podspawn works with any editor, any terminal, any SSH client.
 
 ## Quick start
 
-```bash
-# Server setup (30 seconds)
-curl -sSfL https://podspawn.dev/install.sh | sh
-sudo podspawn server-setup
-sudo podspawn add-user alice --github alice
+### Local (30 seconds)
 
-# Client (any SSH client works)
+```bash
+curl -sSfL https://podspawn.dev/up | bash   # choose "Local"
+podspawn create dev
+podspawn shell dev
+```
+
+### Server (2 minutes)
+
+```bash
+curl -sSfL https://podspawn.dev/up | bash   # choose "Server"
+# Configures sshd, registers your keys
+
+# From any machine:
 ssh alice@yourserver.com
 ```
 
 ## Architecture at a glance
 
-Podspawn is a single binary that serves both roles:
+Podspawn is a single binary that serves multiple roles:
 
-**Server side** -- sshd invokes `podspawn auth-keys` to check if a user is a container user. If yes, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates/reattaches a Docker container and pipes I/O.
+**Local** -- `podspawn create` and `podspawn shell` call Docker directly. No daemon, no background process. The container stays alive between shells; `podspawn destroy` removes it.
 
-**Client side** -- the same binary provides `podspawn connect` as a `ProxyCommand` in `~/.ssh/config`, creating a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container.
+**Server side** -- sshd invokes `podspawn auth-keys` to look up SSH keys. If the user is a container user, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates or reattaches a Docker container and pipes I/O.
 
-Same install, same binary, different commands. The client binary is optional -- any SSH client works without it.
+**Client side** -- the same binary provides `podspawn connect` as a `ProxyCommand` in `~/.ssh/config`, creating a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container. The client binary is optional; any SSH client works without it.
 
 <Cards>
   <Card title="Installation" href="/docs/getting-started/installation" />
