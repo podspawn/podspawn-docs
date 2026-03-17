@@ -1,0 +1,52 @@
+---
+title: podspawn shell
+description: Attach to a container directly via Docker exec, bypassing SSH
+---
+
+Connects to a podspawn container using Docker exec instead of SSH. Useful when sshd isn't available or something else is occupying port 22 (like OrbStack on macOS).
+
+## Usage
+
+```bash
+podspawn shell [user@]<name>
+```
+
+## Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `name` | Yes | Project or container name to attach to |
+| `user` | No | Username prefix, same `user@host` format as other commands |
+
+## When to use this
+
+- **OrbStack is on port 22.** OrbStack Linux machines grab port 22 on macOS, blocking podspawn's sshd hook. `podspawn shell` sidesteps this entirely. See the [OrbStack guide](/docs/guides/orbstack) for details.
+- **sshd isn't configured.** If you're testing podspawn without running `server-setup`, `shell` lets you interact with containers immediately.
+- **Quick debugging.** Sometimes you just want a shell in a container without setting up SSH keys.
+
+## Examples
+
+```bash
+# Attach to a project container
+$ podspawn shell myproject
+
+# Attach as a specific user
+$ podspawn shell alice@backend
+```
+
+## Limitations
+
+`podspawn shell` uses Docker exec, not SSH. This means several SSH-dependent features are unavailable:
+
+| Feature | Available? | Workaround |
+|---------|-----------|-------------|
+| Interactive shell | Yes | -- |
+| SFTP / file transfer | No | `docker cp` |
+| `scp` | No | `docker cp` |
+| Port forwarding (`-L`, `-R`) | No | `docker run -p` or manual `socat` |
+| VS Code Remote SSH | No | Use full SSH setup |
+| Cursor Remote | No | Use full SSH setup |
+| JetBrains Gateway | No | Use full SSH setup |
+| SSH agent forwarding | No | Mount `SSH_AUTH_SOCK` manually |
+
+For full IDE and file transfer support, you need a real SSH connection. See the [OrbStack guide](/docs/guides/orbstack) for how to free port 22 on macOS.

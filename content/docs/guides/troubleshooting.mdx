@@ -5,6 +5,66 @@ description: Common issues and how to fix them
 
 This page covers the most common issues people hit when setting up and running podspawn, along with concrete fixes. When in doubt, start with `podspawn doctor` at the bottom of this page.
 
+## Password prompt instead of key authentication
+
+If SSH asks for a password instead of using your key, something is intercepting or misconfiguring the auth flow. Walk through these checks in order.
+
+### Check 1: Is something else on port 22?
+
+On macOS, OrbStack Linux machines bind to port 22 and intercept SSH connections before they reach your system's sshd. Podspawn's `AuthorizedKeysCommand` never runs because OrbStack handles the connection.
+
+```bash
+sudo lsof -i :22 -P -n | head -5
+```
+
+If you see something other than `/usr/sbin/sshd`, that's your problem. See the [OrbStack guide](/docs/guides/orbstack) for how to fix this on macOS.
+
+### Check 2: Can nobody read the key files?
+
+Podspawn's `AuthorizedKeysCommand` runs as the `nobody` user. If `nobody` can't traverse the directory or read the key files, sshd gets no keys back and falls through to password auth.
+
+```bash
+ls -la /etc/podspawn/keys/
+```
+
+The directory needs to be readable and traversable by `nobody` (mode `0755`). Key files inside need to be readable (mode `0644` or `0600` with appropriate ownership).
+
+### Check 3: Was sshd reloaded after config change?
+
+If you recently ran `server-setup` or edited sshd_config, the running sshd process is still using the old configuration.
+
+```bash
+sudo podspawn doctor
+```
+
+`doctor` checks whether the running sshd config matches what's on disk. If it reports a mismatch, reload sshd:
+
+```bash
+# Ubuntu/Debian
+sudo systemctl reload ssh
+
+# RHEL/Rocky/Fedora
+sudo systemctl reload sshd
+```
+
+### Check 4: Is the user's account locked?
+
+A locked account gets rejected by sshd before `AuthorizedKeysCommand` runs. The symptom is a password prompt even though keys are correctly configured.
+
+```bash
+sudo passwd -S username
+```
+
+If the second field is `L`, the account is locked. Fix it:
+
+```bash
+sudo usermod -p '*' username
+```
+
+See the [locked account section](#locked-user-account) below for more detail.
+
+---
+
 ## Can't SSH in
 
 SSH authentication failures are the most common issue during initial setup. The symptoms are usually `Permission denied (publickey)` or a connection that hangs and times out.

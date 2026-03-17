@@ -1,0 +1,95 @@
+---
+title: macOS with OrbStack
+description: Running podspawn on macOS when OrbStack is installed
+---
+
+OrbStack's Linux machines bind to port 22 on `localhost`, which conflicts with podspawn's sshd hook. If you have OrbStack installed with any Linux machine running, `ssh localhost` reaches OrbStack's VM instead of your Mac's sshd, and podspawn's `AuthorizedKeysCommand` never fires.
+
+There are two ways to handle this.
+
+## Option 1: Stop OrbStack machines (recommended)
+
+OrbStack has two separate features: Linux machines and Docker. You only need Docker for podspawn. Stopping the Linux machines frees port 22 without affecting container workloads.
+
+```bash
+# Stop all Linux machines
+orb stop --all
+
+# Verify port 22 is back to macOS sshd
+sudo lsof -i :22 -P -n | head -5
+```
+
+Docker containers keep running. `docker ps`, `docker build`, and everything else works as before. The only thing that stops is OrbStack's SSH-accessible Linux VMs.
+
+To restart a machine later if you need it:
+
+```bash
+orb start ubuntu
+```
+
+### Why this is the right call
+
+You don't need OrbStack Linux machines and podspawn. They solve the same problem: giving you an isolated Linux environment accessible over SSH. Podspawn does it with per-project containers, automatic cleanup, and multi-user support. If you're using podspawn, the OrbStack machines are redundant.
+
+After stopping machines, re-run the installer to configure sshd:
+
+```bash
+curl -sSfL https://podspawn.dev/up | bash
+```
+
+## Option 2: Use `podspawn shell` (fallback)
+
+If you need OrbStack machines running alongside podspawn, or you just want to skip the sshd setup entirely, `podspawn shell` connects to containers via Docker exec instead of SSH.
+
+```bash
+# Attach to a container by project name
+podspawn shell myproject
+
+# Attach as a specific user to a specific project
+podspawn shell alice@backend
+```
+
+This gives you an interactive shell inside the container without touching port 22.
+
+### What `podspawn shell` can't do
+
+Because `podspawn shell` uses Docker exec instead of SSH, it bypasses the SSH protocol entirely. That means:
+
+- **No SFTP.** File transfers via `scp` or SFTP clients won't work.
+- **No port forwarding.** SSH's `-L` and `-R` flags aren't available.
+- **No VS Code Remote SSH.** VS Code, Cursor, and JetBrains Gateway all require a real SSH connection.
+- **No `scp`.** Use `docker cp` as a workaround.
+
+For a full development workflow with IDE integration and file sync, you need real SSH. That means stopping OrbStack machines and going with Option 1.
+
+## Switching back to full SSH
+
+If you started with `podspawn shell` and want to move to the full SSH setup:
+
+1. Stop OrbStack Linux machines:
+
+   ```bash
+   orb stop --all
+   ```
+
+2. Verify nothing else is on port 22:
+
+   ```bash
+   sudo lsof -i :22 -P -n | head -5
+   ```
+
+   You should see `/usr/sbin/sshd` or nothing. If something else is listening, stop it first.
+
+3. Run the installer:
+
+   ```bash
+   curl -sSfL https://podspawn.dev/up | bash
+   ```
+
+4. Test the connection:
+
+   ```bash
+   ssh youruser@localhost
+   ```
+
+   You should land in a podspawn container, not an OrbStack VM.
