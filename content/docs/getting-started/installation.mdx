@@ -1,74 +1,92 @@
 ---
 title: Installation
-description: Install podspawn on the server and optionally on client machines
+description: Install podspawn for local development, team servers, or remote access
 ---
 
-Podspawn is a **single binary** that works as both server and client. Same install, different commands. Install it once and it handles both roles.
+Podspawn is a **single binary** that runs in three modes. Pick whichever fits your workflow.
 
-## Requirements
-
-**Server:**
-- Linux (any distro -- Ubuntu, Debian, RHEL, Alpine all tested)
-- Docker installed and running
-- OpenSSH 7.4+ (for the `restrict` keyword)
-- Root access
-
-**Client:**
-- Any SSH client on any OS works without podspawn
-- Install the podspawn binary for `.pod` namespace routing (optional but recommended)
-
-<Callout type="info">
-There is no separate server package or client package. The same `podspawn` binary runs `server-setup` on the server and `connect`/`setup` on the client. Install it on both.
-</Callout>
+| Mode | Who it's for | What you need |
+|---|---|---|
+| **Local** | Solo devs on macOS/Linux | Docker runtime (OrbStack, Docker Desktop, Colima) |
+| **Server** | Teams sharing a Linux box | Linux + Docker + sshd + root |
+| **Client** | Connecting to a remote server | The podspawn binary |
 
 ---
 
-## Interactive setup (recommended)
+## Local mode
 
-One command installs the binary, configures sshd, registers your SSH keys, and runs diagnostics:
+The fastest path. No root, no SSH, no sshd configuration. Just Docker and the binary.
+
+### Interactive install
 
 ```bash
 curl -sSfL https://podspawn.dev/up | bash
 ```
 
-The script auto-detects whether you're on a server (sshd + Docker present) or a client machine and walks you through setup interactively.
+Choose **Local** when prompted. The script installs the binary and verifies Docker is reachable.
 
-On a server, it will:
-1. Download and install the podspawn binary
-2. Run `podspawn server-setup` to configure sshd
-3. Ask how you want to register SSH keys (GitHub, existing key, generate new, or paste)
-4. Run `podspawn doctor` to verify everything works
-5. Enable the cleanup timer if systemd is available
-
-On a client, it will:
-1. Download and install the podspawn binary
-2. Add the `.pod` namespace block to `~/.ssh/config`
-3. Ask for your default server hostname
-
----
-
-## Manual server setup
-
-If you prefer step-by-step control:
-
-### Step 1: Install the binary
-
-```bash
-curl -sSfL https://podspawn.dev/install.sh | sh
-```
-
-Or from source:
-
-```bash
-go install github.com/podspawn/podspawn@latest
-```
-
-Or via package manager:
+### Manual install
 
 ```bash
 # Homebrew (macOS/Linux)
 brew install --cask podspawn/tap/podspawn
 
+# Or download the binary directly
+curl -sSfL https://podspawn.dev/install.sh | sh
+
+# Or from source
+go install github.com/podspawn/podspawn@latest
+```
+
+### Requirements
+
+- Docker running locally (OrbStack, Docker Desktop, or Colima all work)
+- No root access needed
+- No SSH setup needed
+
+### Try it
+
+```bash
+podspawn create dev          # create a persistent pod
+podspawn shell dev           # drop into a shell
+podspawn run scratch         # one-shot throwaway container
+```
+
+<Callout type="info">
+Local mode talks to Docker directly. There's no sshd involved, no key management, no network configuration. If `docker ps` works, podspawn works.
+</Callout>
+
+---
+
+## Server mode
+
+For teams. A shared Linux box where users SSH in and land in isolated containers.
+
+### Interactive install
+
+```bash
+curl -sSfL https://podspawn.dev/up | bash
+```
+
+Choose **Server** when prompted. The script will:
+
+1. Install the podspawn binary
+2. Run `podspawn server-setup` to configure sshd with `AuthorizedKeysCommand`
+3. Register SSH keys (from GitHub, a file, or pasted directly)
+4. Run `podspawn doctor` to verify everything works
+5. Enable the cleanup timer if systemd is available
+
+### Manual install
+
+#### Step 1: Install the binary
+
+```bash
+curl -sSfL https://podspawn.dev/install.sh | sh
+```
+
+Or via package manager:
+
+```bash
 # Debian/Ubuntu (.deb)
 # Download from GitHub releases:
 # https://github.com/podspawn/podspawn/releases
@@ -78,43 +96,36 @@ sudo dpkg -i podspawn_*.deb
 sudo rpm -i podspawn_*.rpm
 ```
 
-### Step 2: Configure sshd
+#### Step 2: Configure sshd
 
 ```bash
 sudo podspawn server-setup
 ```
 
-This appends `AuthorizedKeysCommand` to `/etc/ssh/sshd_config`, creates directories, and reloads sshd. It's idempotent -- safe to run multiple times.
+This appends `AuthorizedKeysCommand` to `/etc/ssh/sshd_config`, creates directories, and reloads sshd. Idempotent, safe to run multiple times.
 
-### Step 3: Register a user
-
-Import keys from GitHub:
+#### Step 3: Register a user
 
 ```bash
+# Import keys from GitHub
 sudo podspawn add-user alice --github alice
-```
 
-Or use a local key file:
-
-```bash
+# Or from a local key file
 sudo podspawn add-user alice --key-file ~/.ssh/id_ed25519.pub
-```
 
-Or paste a key directly:
-
-```bash
+# Or paste a key directly
 sudo podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
 ```
 
-### Step 4: Verify
+#### Step 4: Verify
 
 ```bash
 sudo podspawn doctor
 ```
 
-This checks Docker, sshd, permissions, disk space, and image cache. Fix any failures before proceeding.
+Checks Docker, sshd, permissions, disk space, and image cache. Fix any failures before proceeding.
 
-### Step 5: Test
+#### Step 5: Test
 
 ```bash
 ssh alice@localhost
@@ -122,57 +133,58 @@ ssh alice@localhost
 
 You should land in a container. Type `exit` to leave.
 
+### Requirements
+
+- Linux (Ubuntu, Debian, RHEL, Alpine all tested)
+- Docker installed and running
+- OpenSSH 7.4+ (for the `restrict` keyword)
+- Root access
+
 ---
 
-## Client setup
+## Client mode
 
-The client binary is optional. Without it, you SSH directly to the server hostname. With it, you get the `.pod` namespace:
+Connect to a remote podspawn server. The binary is optional but gives you `.pod` namespace routing.
 
-```bash
-ssh alice@backend.pod    # requires client binary
-ssh alice@yourserver.com  # works with any SSH client
-```
-
-### macOS / Linux
+### Install
 
 ```bash
 curl -sSfL https://podspawn.dev/up | bash
 ```
 
-Or install manually:
+Choose **Client** when prompted. Or install manually:
 
 ```bash
-# Install binary
+# Homebrew (macOS/Linux)
+brew install --cask podspawn/tap/podspawn
+
+# Or download the binary
 curl -sSfL https://podspawn.dev/install.sh | sh
-
-# Configure SSH client
-podspawn setup
 ```
 
-### Windows
-
-No installer needed. Add this to `~/.ssh/config` (or `C:\Users\you\.ssh\config`):
-
-```
-Host *.pod
-    ProxyCommand podspawn connect %r %h %p
-    UserKnownHostsFile /dev/null
-    StrictHostKeyChecking no
-```
-
-Download the binary from [GitHub releases](https://github.com/podspawn/podspawn/releases) and place it in your PATH.
-
-<Callout type="warn">
-**macOS Gatekeeper:** If you install manually (not via Homebrew), macOS may block the binary. Either allow it in **System Settings → Privacy & Security**, or remove the quarantine attribute:
+### Configure
 
 ```bash
-xattr -dr com.apple.quarantine /usr/local/bin/podspawn
+# Set up SSH config for .pod namespace
+podspawn setup
+
+# Point to your team's server
+podspawn config set servers.default devbox.company.com
 ```
-</Callout>
 
-### Configure server routing
+### Connect
 
-Create `~/.podspawn/config.yaml`:
+```bash
+# With .pod namespace (requires podspawn binary)
+ssh alice@backend.pod
+
+# Without podspawn, plain SSH works too
+ssh alice@devbox.company.com
+```
+
+### Advanced routing
+
+Create `~/.podspawn/config.yaml` for multiple servers:
 
 ```yaml
 servers:
@@ -182,9 +194,26 @@ servers:
     personal.pod: homelab.ddns.net
 ```
 
-Now `ssh alice@backend.pod` routes to `devbox.company.com`, and `ssh alice@gpu.pod` routes to `gpu-server.company.com`.
+`localhost.pod` always resolves to `127.0.0.1` without config.
 
-`localhost.pod` always resolves to `127.0.0.1` without any config.
+### Windows
+
+No installer needed. Download the binary from [GitHub releases](https://github.com/podspawn/podspawn/releases), place it in your PATH, and add this to `C:\Users\you\.ssh\config`:
+
+```
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+<Callout type="warn">
+**macOS Gatekeeper:** If you install manually (not via Homebrew), macOS may block the binary. Allow it in **System Settings > Privacy & Security**, or remove the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine /usr/local/bin/podspawn
+```
+</Callout>
 
 ---
 
@@ -194,9 +223,9 @@ Now `ssh alice@backend.pod` routes to `devbox.company.com`, and `ssh alice@gpu.p
 podspawn update
 ```
 
-This checks GitHub for the latest release, downloads it, and replaces the binary. Existing SSH sessions are not affected.
+Downloads the latest release and replaces the binary. Existing sessions are not affected.
 
-Check for updates without installing:
+Check without installing:
 
 ```bash
 podspawn update --check
@@ -206,16 +235,28 @@ podspawn update --check
 
 ## What gets installed
 
+### All modes
+
 | Path | Purpose |
 |---|---|
-| `/usr/local/bin/podspawn` | Single binary for both server and client |
-| `/etc/podspawn/` | Server config directory (created by `server-setup`) |
+| `/usr/local/bin/podspawn` | Single binary |
+
+### Server mode (created by `server-setup`)
+
+| Path | Purpose |
+|---|---|
+| `/etc/podspawn/` | Server config directory |
 | `/etc/podspawn/keys/` | Per-user SSH public key store |
 | `/etc/podspawn/config.yaml` | Server configuration |
 | `/etc/podspawn/emergency.keys` | Break-glass access keys |
 | `/var/lib/podspawn/` | State directory (SQLite database, lock files) |
-| `~/.ssh/config` | Client: `.pod` namespace block (appended by `setup`) |
-| `~/.podspawn/config.yaml` | Client: server routing configuration |
+
+### Client mode (created by `setup`)
+
+| Path | Purpose |
+|---|---|
+| `~/.ssh/config` | `.pod` namespace block (appended) |
+| `~/.podspawn/config.yaml` | Server routing configuration |
 
 ---
 
