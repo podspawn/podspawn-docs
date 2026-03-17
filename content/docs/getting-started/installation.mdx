@@ -3,9 +3,9 @@ title: Installation
 description: Install podspawn for local development, team servers, or remote access
 ---
 
-Podspawn is a **single binary** that runs in three modes. Pick whichever fits your workflow.
+Podspawn is a **single binary** with two modes: **local** (solo, no SSH) and **server** (multi-user, via sshd). If you're connecting to someone else's server, see [Client mode](#client-mode) below.
 
-| Mode | Who it's for | What you need |
+| Install path | Who it's for | What you need |
 |---|---|---|
 | **Local** | Solo devs on macOS/Linux | Docker runtime (OrbStack, Docker Desktop, Colima) |
 | **Server** | Teams sharing a Linux box | Linux + Docker + sshd + root |
@@ -29,7 +29,7 @@ Choose **Local** when prompted. The script installs the binary and verifies Dock
 
 ```bash
 # Homebrew (macOS/Linux)
-brew install --cask podspawn/tap/podspawn
+brew install podspawn/tap/podspawn
 
 # Or download the binary directly
 curl -sSfL https://podspawn.dev/install.sh | sh
@@ -47,7 +47,7 @@ go install github.com/podspawn/podspawn@latest
 ### Try it
 
 ```bash
-podspawn create dev          # create a persistent pod
+podspawn create dev          # create a persistent machine
 podspawn shell dev           # drop into a shell
 podspawn run scratch         # one-shot throwaway container
 ```
@@ -156,7 +156,7 @@ Choose **Client** when prompted. Or install manually:
 
 ```bash
 # Homebrew (macOS/Linux)
-brew install --cask podspawn/tap/podspawn
+brew install podspawn/tap/podspawn
 
 # Or download the binary
 curl -sSfL https://podspawn.dev/install.sh | sh

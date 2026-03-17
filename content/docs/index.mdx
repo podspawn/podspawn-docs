@@ -64,7 +64,7 @@ ssh alice@yourserver.com
 
 Podspawn is a single binary that serves multiple roles:
 
-**Local** -- `podspawn create` and `podspawn shell` call Docker directly. No daemon, no background process. The container stays alive between shells; `podspawn destroy` removes it.
+**Local** -- `podspawn create` and `podspawn shell` call Docker directly. No daemon, no background process. The container stays alive between shells; `podspawn stop` removes it.
 
 **Server side** -- sshd invokes `podspawn auth-keys` to look up SSH keys. If the user is a container user, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates or reattaches a Docker container and pipes I/O.
 
