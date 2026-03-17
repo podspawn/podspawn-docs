@@ -1,49 +1,173 @@
 ---
 title: Tutorial
-description: Build a complete podspawn environment from scratch
+description: Get a containerized dev environment in under two minutes
 ---
 
-This tutorial walks through setting up podspawn on a fresh server, adding users, connecting from a laptop, configuring a project with a Podfile, and cleaning up when someone leaves. By the end you will have a working multi-user dev environment that runs entirely over SSH.
+This tutorial covers two ways to use podspawn: **local mode** (runs containers on your own machine with Docker) and **server mode** (multi-user setup on a shared Linux server via SSH). Start with local mode. Server mode is for teams.
 
-## What you need
+---
 
-- A fresh Ubuntu 24.04 server with Docker installed and running
-- SSH access to the server as a user with sudo
-- A laptop with an SSH client (any OS)
-- A GitHub account with public SSH keys (for the key import step)
+## Local mode
 
-## Step 1: Install podspawn on the server
+Local mode manages Docker containers directly. No SSH, no sshd config, no keys. You run commands, you get containers.
 
-SSH into your server and run the installer.
+### What you need
 
-```bash
-ssh you@devbox.company.com
-```
+- macOS or Linux with Docker (or OrbStack) installed and running
+- That's it
+
+### Step 1: Install podspawn
 
 ```bash
-curl -sSfL https://podspawn.dev/install.sh | sh
+curl -sSfL https://podspawn.dev/up | bash
 ```
 
-```
-  Detected: linux/amd64
-  Downloading podspawn v0.1.0...
-  Installing to /usr/local/bin/podspawn
-  Done.
-```
-
-Verify the binary is in place:
+This downloads the binary and puts it in your PATH. On macOS with OrbStack, Docker is already available through the OrbStack socket.
 
 ```bash
 podspawn version
 ```
 
-```
-podspawn v0.1.0 (a1b2c3d)
+### Step 2: Create a machine
+
+```bash
+podspawn create dev
 ```
 
-## Step 2: Run server-setup
+```
+created dev (ubuntu:24.04)
+```
 
-This configures your existing sshd to use podspawn for container users while leaving normal SSH access completely untouched. It is idempotent and crash-safe: if anything goes wrong, your original sshd config is restored automatically.
+This pulls the base image (if needed) and starts a container named `dev`. The container runs in the background with your user mapped inside it.
+
+### Step 3: Attach a shell
+
+```bash
+podspawn shell dev
+```
+
+```
+you@dev:~$
+```
+
+You're inside the container. Terminal resize, colors, Ctrl-C all work. This is a Docker exec under the hood, not SSH.
+
+### Step 4: Do some work
+
+Install packages, clone repos, run tests. The container persists until you stop it.
+
+```bash
+sudo apt-get update && sudo apt-get install -y ripgrep git
+git clone https://github.com/your-org/your-repo /workspace/repo
+cd /workspace/repo
+```
+
+Open a second terminal and run `podspawn shell dev` again. You land in the same container.
+
+### Step 5: Detach and check status
+
+Type `exit` or press Ctrl-D to leave the shell. The container keeps running.
+
+```bash
+podspawn list
+```
+
+```
+NAME   IMAGE          STATUS    AGE
+dev    ubuntu:24.04   running   12m
+```
+
+### Step 6: Stop the machine
+
+```bash
+podspawn stop dev
+```
+
+```
+stopped dev
+```
+
+The container is removed. Any state inside it is gone. That's the point: environments are disposable and reproducible.
+
+### Step 7: Ephemeral mode with `run`
+
+If you want a throwaway container that dies when you exit:
+
+```bash
+podspawn run scratch
+```
+
+```
+you@scratch:~$ echo "do stuff here"
+do stuff here
+you@scratch:~$ exit
+```
+
+```
+destroyed scratch
+```
+
+`run` creates a container, attaches a shell, and destroys it on exit. One command, no cleanup.
+
+### Step 8: Use a Podfile
+
+For a project with specific dependencies, create a `podfile.yaml`:
+
+```yaml
+base: ubuntu:24.04
+
+packages:
+  - nodejs@22
+  - git
+  - curl
+
+env:
+  NODE_ENV: development
+
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: testdb
+
+on_create: |
+  cd /workspace && npm install
+```
+
+Then create a machine from it:
+
+```bash
+podspawn create api --podfile podfile.yaml
+```
+
+The container comes up with Node.js installed and a PostgreSQL sidecar running on the same Docker network. When you stop the machine, the sidecar is cleaned up too.
+
+### What you have now
+
+A local workflow where `podspawn create` replaces hand-maintained Docker Compose files, `podspawn shell` replaces `docker exec -it`, and `podspawn run` gives you disposable scratch containers. No SSH, no configuration files, no server setup.
+
+---
+
+## Server mode
+
+Server mode is for teams. One Linux server, multiple developers. Users SSH in and get isolated containers. The server admin installs podspawn once; developers connect with any SSH client.
+
+### What you need
+
+- A Linux server (Ubuntu, Debian, RHEL, Alpine) with Docker installed
+- SSH access to the server as a user with sudo
+- Developers with SSH keys (GitHub import supported)
+
+### Step 1: Install on the server
+
+```bash
+ssh you@devbox.company.com
+curl -sSfL https://podspawn.dev/up | bash
+```
+
+### Step 2: Configure sshd
 
 ```bash
 sudo podspawn server-setup
@@ -56,18 +180,9 @@ reloaded ssh
 server-setup complete
 ```
 
-What happened behind the scenes:
+This adds two lines to your sshd config so that sshd calls podspawn to authenticate container users. Your existing SSH access is untouched. The operation is idempotent and rolls back on failure.
 
-- sshd was validated before and after any changes
-- A backup was saved at `/etc/ssh/sshd_config.podspawn.bak`
-- The `AuthorizedKeysCommand` lines tell sshd to call podspawn when authenticating users
-- The directory `/etc/podspawn/keys/` was created for storing user public keys
-- The state database was initialized at `/var/lib/podspawn/state.db`
-- sshd was reloaded (not restarted), so your current SSH session stays alive
-
-## Step 3: Add a user
-
-Your colleague Sarah needs access. She has SSH keys on her GitHub profile. One command pulls them down and registers her as a container user.
+### Step 3: Add users
 
 ```bash
 sudo podspawn add-user sarah --github sarahcodes
@@ -77,7 +192,7 @@ sudo podspawn add-user sarah --github sarahcodes
 added 2 key(s) for sarah
 ```
 
-The `--github` flag is a one-time import. The keys are saved locally at `/etc/podspawn/keys/sarah` in standard authorized_keys format. From this point forward, auth-keys reads from that local file and never makes network calls. If GitHub goes down, authentication still works.
+Keys are saved locally at `/etc/podspawn/keys/sarah`. No network calls happen at auth time. GitHub is only contacted during `add-user`.
 
 You can also add keys directly:
 
@@ -86,251 +201,57 @@ sudo podspawn add-user sarah --key "ssh-ed25519 AAAA... sarah@laptop"
 sudo podspawn add-user sarah --key-file /tmp/sarah-id.pub
 ```
 
-## Step 4: SSH in from a laptop
+### Step 4: Users SSH in
 
-Sarah installs the podspawn client on her laptop. This is optional but gives her the `.pod` namespace.
+From any machine with the registered key:
 
 ```bash
-curl -sSfL https://podspawn.dev/install.sh | sh
-podspawn setup
+ssh sarah@devbox.company.com
 ```
 
+Sarah lands in a Docker container. SFTP, SCP, port forwarding, and agent forwarding all work because sshd handles the protocol.
+
 ```
-added *.pod block to ~/.ssh/config
+sarah@podspawn-sarah-abc123:~$ whoami
+sarah
 ```
 
-She also needs to tell podspawn where her server is. Create `~/.podspawn/config.yaml`:
+Multiple SSH sessions share the same container. When all sessions disconnect, a grace period starts. After it expires, the container is destroyed.
+
+### Step 5: Optional .pod namespace
+
+Developers can install the podspawn client on their laptops for friendly hostnames:
+
+```bash
+curl -sSfL https://podspawn.dev/up | bash
+```
+
+Create `~/.podspawn/config.yaml`:
 
 ```yaml
 servers:
   default: devbox.company.com
 ```
 
-Now she can SSH in:
+Now `ssh sarah@work.pod` routes to the server, and `work` becomes the project name.
+
+### Step 6: Remove users
 
 ```bash
-ssh sarah@work.pod
+sudo podspawn remove-user sarah --force
 ```
 
 ```
-sarah@podspawn-sarah-work:~$
+removed user sarah (1 session(s) destroyed)
 ```
 
-She is inside a Docker container running Ubuntu 24.04. The hostname tells her who she is and which project she connected to. Her terminal works normally, including resize, colors, and Ctrl-C.
+Keys deleted, containers killed, done. No tokens to expire, no sessions to invalidate.
 
-What happened behind the scenes:
-
-1. The `*.pod` rule in her SSH config intercepted `work.pod` before DNS
-2. `podspawn connect` resolved `work.pod` to `devbox.company.com` from her config
-3. An SSH connection was made to the real server with username `sarah`
-4. sshd called `podspawn auth-keys sarah`, which found her keys in `/etc/podspawn/keys/sarah`
-5. The key matched, so sshd forced the command `podspawn spawn --user sarah`
-6. podspawn spawn created a new container and attached stdin/stdout
-7. Sarah got a shell
-
-If Sarah opens a second terminal and runs `ssh sarah@work.pod` again, she lands in the same container. podspawn tracks a reference count of active connections.
-
-When all of Sarah's SSH sessions disconnect, a 60-second grace period starts. If she reconnects within that window, she gets the same container back. If not, the container is destroyed.
-
-## Step 5: Create a Podfile for a Node.js project
-
-Sarah's team works on a Node.js API that uses PostgreSQL. Right now, everyone SSHes into a bare Ubuntu container and has to install Node and set up a database manually. A Podfile fixes this.
-
-Create `podfile.yaml` in the root of the project repo:
-
-```yaml
-base: ubuntu:24.04
-
-packages:
-  - nodejs@22
-  - git
-  - curl
-  - ripgrep
-
-shell: /bin/bash
-
-env:
-  DATABASE_URL: "postgres://postgres:devpass@postgres:5432/testdb"
-  NODE_ENV: development
-
-services:
-  - name: postgres
-    image: postgres:16
-    ports: [5432]
-    env:
-      POSTGRES_PASSWORD: devpass
-      POSTGRES_DB: testdb
-
-on_create: |
-  cd /workspace/api && npm install
-
-on_start: |
-  echo "API dev environment ready"
-  echo "Run: cd /workspace/api && npm test"
-```
-
-Commit this to the repo. The Podfile declares the full environment: base image, packages, environment variables, companion services, and lifecycle hooks. `on_create` runs once when the image is first built. `on_start` runs every time a session begins.
-
-## Step 6: Register the project
-
-Back on the server, register the project so podspawn knows which repo to pull the Podfile from:
-
-```bash
-sudo podspawn add-project api --repo github.com/company/node-api
-```
-
-```
-project api registered, image: podspawn-api:a1b2c3d
-```
-
-This adds an entry to the `projects` section of `/etc/podspawn/config.yaml`:
-
-```yaml
-projects:
-  api:
-    repo: github.com/company/node-api
-```
-
-## Step 7: SSH into the project environment
-
-Sarah connects to the project:
-
-```bash
-ssh sarah@api.pod
-```
-
-The first connection takes a couple of minutes because podspawn has to clone the repo, read the Podfile, build the image, pull the PostgreSQL image, and run `npm install`. Subsequent connections use the cached image and start in under a second.
-
-```
-Building environment from podfile.yaml (first time, this takes a minute)...
-  Pulling base image ubuntu:24.04... done
-  Installing packages: nodejs@22 git curl ripgrep... done
-  Starting companion service: postgres (postgres:16)... done
-  Running on_create: npm install... done
-
-API dev environment ready
-Run: cd /workspace/api && npm test
-
-sarah@podspawn-sarah-api:~$
-```
-
-The PostgreSQL container is running on the same Docker network. Sarah can connect to it by hostname:
-
-```bash
-cd /workspace/api
-npm test
-```
-
-```
-> node-api@1.0.0 test
-> jest --runInBand
-
- PASS  tests/users.test.js
-  Users API
-    ✓ creates a user (45ms)
-    ✓ returns 400 for missing email (12ms)
-    ✓ lists users with pagination (38ms)
-
- PASS  tests/auth.test.js
-  Authentication
-    ✓ issues a JWT on login (22ms)
-    ✓ rejects invalid credentials (8ms)
-
-Test Suites: 2 passed, 2 total
-Tests:       5 passed, 5 total
-Time:        1.284s
-```
-
-Tests run against real PostgreSQL, not mocks. The `DATABASE_URL` environment variable from the Podfile points to the companion postgres service. When Sarah disconnects and the container is destroyed, the postgres container is destroyed too.
-
-## Step 8: Connect with VS Code Remote SSH
-
-VS Code Remote SSH works out of the box because it uses standard SFTP and exec channels, both of which podspawn routes into the container.
-
-In VS Code, open the Command Palette and select **Remote-SSH: Connect to Host**. Enter:
-
-```
-sarah@api.pod
-```
-
-VS Code connects, installs its server-side component inside the container, and opens a remote workspace. File editing, the integrated terminal, extensions, debugging, and port forwarding all work as expected.
-
-The `.pod` routing works because VS Code reads `~/.ssh/config` and uses the `ProxyCommand` like any other SSH client.
-
-For this to work, Sarah's laptop needs the podspawn client installed and `podspawn setup` run (Step 4). Without the client, she can connect directly to the server hostname instead:
-
-```
-sarah@devbox.company.com
-```
-
-This still gives her a container, just without the per-project routing. She lands in the default environment.
-
-## Step 9: Cleanup daemon and status
-
-The optional cleanup daemon enforces session lifetimes and reconciles orphaned containers. Run it as a systemd service or a cron job:
-
-```bash
-sudo podspawn cleanup --daemon
-```
-
-```
-INFO cleanup daemon started interval=1m0s
-```
-
-Or run it once for a one-shot cleanup:
-
-```bash
-sudo podspawn cleanup
-```
-
-```
-INFO grace period expired, destroying user=sarah project=work container=podspawn-sarah-work
-INFO removing orphaned container name=podspawn-bob-api id=3f4a5b6c7d8e
-INFO cleanup pass complete grace_expired=1 lifetime_expired=0 orphans_removed=1
-Cleanup pass complete.
-```
-
-Check who is connected right now:
-
-```bash
-sudo podspawn list
-```
-
-```
-USER   PROJECT    CONTAINER            STATUS        CONNS  AGE   LIFETIME LEFT
-sarah  api        podspawn-sarah-api   running       1      10m   7h50m
-james  api        podspawn-james-api   running       2      45m   7h15m
-sarah  (default)  podspawn-sarah       grace_period  0      4m    7h56m
-```
-
-Sarah has one SSH session to the `api` project and a default session in the grace period (she disconnected 4 minutes ago). James has two terminals open to `api`.
-
-## Step 10: Remove a user
-
-James is leaving the team. Remove his access:
-
-```bash
-sudo podspawn remove-user james --force
-```
-
-```
-INFO destroying session user=james container=podspawn-james-api
-removed user james (1 session(s) destroyed)
-```
-
-This immediately stops any running containers for that user, destroys companion services, and deletes their keys from the local store. James's next SSH attempt falls through to normal sshd auth, which rejects him because he has no system account.
-
-No keys to revoke on GitHub, no tokens to expire, no sessions to invalidate in a web UI. Delete the file, kill the container, done.
-
-## What you have now
-
-A single Ubuntu server running stock sshd with two extra config lines. Developers SSH in and get isolated, reproducible containers. Projects define their environments in a Podfile committed alongside their code. Companion services like PostgreSQL run alongside dev containers and are cleaned up automatically. VS Code, SFTP, scp, rsync, port forwarding, and agent forwarding all work because podspawn never reimplements SSH.
-
-The key architectural point: podspawn is not a daemon. It is a binary that sshd invokes on demand. When nobody is connected, nothing is running. When someone SSHes in, sshd calls `podspawn spawn`, a container appears, and I/O is piped through. When they leave, the container eventually dies. The entire system is stateless except for a small SQLite database tracking active sessions.
+---
 
 ## Next steps
 
-- [SSH Features](/docs/guides/ssh-features) for a deep dive on SFTP, port forwarding, agent forwarding, and more
-- [Security Hardening](/docs/guides/security-hardening) for gVisor, seccomp profiles, and network isolation
-- [AI Agents](/docs/guides/ai-agents) for setting up disposable environments for coding agents
-- [IDE Integration](/docs/guides/ide-integration) for VS Code, JetBrains Gateway, and Cursor
+- [Podfile Spec](/docs/podfile/overview) for declaring project environments
+- [IDE Integration](/docs/guides/ide-integration) for VS Code, JetBrains, and Cursor
+- [AI Agents](/docs/guides/ai-agents) for disposable agent environments
+- [Security Hardening](/docs/guides/security-hardening) for gVisor, seccomp, and network isolation
