@@ -1,57 +1,97 @@
 ---
-title: Hooks
-description: Lifecycle hooks (on_create, on_start), dotfiles cloning, and repository cloning during container setup.
+title: Hooks & Lifecycle
+description: Complete reference for container lifecycle, hooks, dotfiles, repository cloning, extra commands, and environment variables.
 ---
 
-Podspawn runs setup tasks at specific points in a container's lifecycle. These include lifecycle hooks, dotfiles installation, and repository cloning.
+## Container lifecycle
 
-## Lifecycle hooks
+Every podspawn container follows this sequence. Understanding it is key to writing hooks that work correctly.
 
-### on_create
+### New container (first connection)
 
-**Runs:** Once, when the container is first created.
+```
+1. Image built from Podfile (extra_commands run here, as root)
+2. Container created and started (sleep infinity)
+3. Non-root user created (UID 1000, with passwordless sudo)
+4. Bridge network created
+5. Service containers started (postgres, redis, etc.)
+6. Dotfiles cloned and install script run
+7. Repositories cloned
+8. on_create hook runs
+9. on_start hook runs
+10. Shell attached (or command executed)
+```
+
+### Existing container (reattach)
+
+```
+1. Podfile re-parsed (so on_start is always available)
+2. on_start hook runs
+3. Shell attached (or command executed)
+```
+
+Steps 6-8 only run once, when the container is first created. The `on_start` hook runs on every connection, including the first.
+
+## on_create
+
+Runs once per container, after dotfiles and repos are cloned, before `on_start`. Use it for one-time setup: installing project dependencies, running database migrations, compiling assets, seeding data.
 
 ```yaml
 on_create: |
-  npm install
-  pip install -r requirements.txt
-  createdb myapp
+  cd /workspace/backend && pip install -r requirements.txt
+  createdb myapp_dev
+  python manage.py migrate
 ```
 
-Use this for one-time setup that should not repeat on reconnect: installing dependencies, creating databases, running migrations, building initial artifacts.
+If the container already exists when you connect, `on_create` does not run again. To re-run it, destroy and recreate the container.
 
-### on_start
+## on_start
 
-**Runs:** Every time the container starts, including when reattaching to an existing session.
+Runs on every connection, including the first. Use it for tasks that should happen each time: starting background services, printing a status banner, refreshing tokens.
 
 ```yaml
-on_start: echo "welcome back"
+on_start: |
+  redis-server --daemonize yes
+  echo "dev environment ready"
 ```
 
-Use this for tasks that should run on every connection: starting background services, printing status messages, refreshing environment state.
+On the first connection, `on_start` runs immediately after `on_create`. On subsequent connections (reattach), it runs before the shell opens.
 
-<Callout>
-Both hooks run as the non-root container user (not root). Use `sudo` for operations that need root privileges. A non-zero exit code is logged as a warning but does not prevent the session from starting. The container remains usable even if hooks fail.
-</Callout>
+## Execution context
 
-## Execution order
+Both hooks run with these properties:
 
-When a new container is created, the setup sequence is:
+- **User:** The non-root container user (UID 1000), not root.
+- **Working directory:** `/home/<username>` (the user's home directory).
+- **Shell:** `sh -c "<script>"`. The script is passed as a single string.
+- **Sudo:** Available without a password. Podfile-built images always include sudo and a NOPASSWD sudoers entry for the container user.
+- **Exit code:** A non-zero exit is logged as a warning. It does **not** stop the remaining setup or prevent the shell from opening. The container stays usable.
 
-1. Container created and started
-2. Service containers started (if any)
-3. Dotfiles cloned and install script run (if configured)
-4. Repositories cloned (if configured)
-5. `on_create` hook runs
-6. `on_start` hook runs
+### Environment variables
 
-On reattach to an existing container:
+Hooks have access to:
 
-1. `on_start` hook runs
+| Variable | Value | Available in |
+|----------|-------|-------------|
+| `$HOME` | `/home/<username>` | Always |
+| `$USER` | The container username | Always |
+| `$SHELL` | The configured shell (e.g., `/bin/bash`) | Always |
+| Podfile `env` vars | Static values baked into the image at build time | Always |
+| `${PODSPAWN_USER}` | Expanded at container creation (in env values only) | Runtime env vars |
+| `${PODSPAWN_PROJECT}` | Expanded at container creation (in env values only) | Runtime env vars |
+
+Static env vars (those without `${PODSPAWN_` references) are set as `ENV` directives in the generated Dockerfile, so they are available everywhere including hooks. Dynamic env vars containing `${PODSPAWN_USER}` or `${PODSPAWN_PROJECT}` are expanded at container creation and passed as runtime environment variables.
+
+```yaml
+env:
+  EDITOR: vim                                    # static, baked into image
+  DATABASE_URL: postgres://localhost/myapp        # static, baked into image
+  WORKSPACE: /home/${PODSPAWN_USER}/projects      # dynamic, expanded at runtime
+```
 
 ## Dotfiles
 
-The `dotfiles` field clones a git repository into `~/dotfiles` (i.e., `/home/<username>/dotfiles`) inside the container and optionally runs an install script.
+The `dotfiles` field clones a git repository into the container and runs an optional install script. This is the standard way to bring your shell configuration, editor settings, and tool configs into every container.
 
 ```yaml
 dotfiles:
@@ -59,26 +99,58 @@ dotfiles:
   install: ./install.sh
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `repo` | `string` | Git URL to clone. |
-| `install` | `string` | Command to run after cloning. Executed with `sh -c` from the `~/dotfiles` directory. |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `repo` | `string` | yes | Git URL to clone. |
+| `install` | `string` | no | Command to run after cloning. Executed with `sh -c` from the dotfiles directory. |
 
-The install command runs as the non-root container user:
+### How it works
 
-```sh
-cd ~/dotfiles && ./install.sh
+1. The repo is cloned to `/home/<username>/dotfiles` as the non-root user.
+2. If `install` is set, it runs from within that directory: `cd ~/dotfiles && <install command>`.
+3. The install script runs as the non-root user. Use `sudo` inside the script for operations that need root.
+
+### Error handling
+
+- If the **clone fails** (network error, bad URL, auth failure), the error is logged as a warning. Setup continues.
+- If the **install script exits non-zero**, it is logged as a warning. Setup continues.
+
+Neither failure prevents the container from starting.
+
+### Common install approaches
+
+**GNU Stow** (symlink farm manager):
+
+```yaml
+dotfiles:
+  repo: https://github.com/youruser/dotfiles.git
+  install: stow -t $HOME bash vim git tmux
 ```
 
-Use `sudo` inside your install script for operations that need root (e.g., `sudo apt-get install`).
+Each directory in your dotfiles repo maps to a program. Stow creates symlinks from `~/dotfiles/bash/.bashrc` to `~/.bashrc`, etc.
 
-If the clone fails, the error is returned and setup stops. If the install script exits non-zero, it is logged as a warning and setup continues.
+**rcm** (rc file management):
 
-Dotfiles can also be configured in [user overrides](/docs/configuration/user-overrides), which lets each user bring their own dotfiles to any project.
+```yaml
+dotfiles:
+  repo: https://github.com/youruser/dotfiles.git
+  install: RCRC=$HOME/dotfiles/rcrc rcup -f
+```
+
+**Custom install script:**
+
+```yaml
+dotfiles:
+  repo: https://github.com/youruser/dotfiles.git
+  install: |
+    ln -sf ~/dotfiles/.bashrc ~/.bashrc
+    ln -sf ~/dotfiles/.vimrc ~/.vimrc
+    ln -sf ~/dotfiles/.gitconfig ~/.gitconfig
+```
 
 ## Repository cloning
 
-The `repos` field clones one or more repositories into the container.
+The `repos` field clones one or more git repositories into the container. Repos are cloned after dotfiles and before `on_create`, so your hooks can operate on the cloned code.
 
 ```yaml
 repos:
@@ -92,21 +164,114 @@ repos:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `url` | `string` | yes | Git URL of the repository. |
-| `path` | `string` | no | Clone destination inside the container. If omitted, Git picks the directory name from the URL. |
-| `branch` | `string` | no | Branch to check out. Cloned with `--single-branch` for faster downloads. If omitted, the repository's default branch is used. |
+| `path` | `string` | no | Clone destination inside the container. If omitted, git picks the directory name from the URL. |
+| `branch` | `string` | no | Branch to check out. Cloned with `--single-branch` for faster downloads. If omitted, the default branch is used. |
+
+Repos are cloned as the non-root container user. If a clone fails, the error is logged as a warning and the remaining repos still clone.
 
 <Callout>
-Repository cloning requires `git` to be available inside the container. If your base image does not include git, add it to the `packages` list.
+Repository cloning requires `git` inside the container. If your base image does not include git, add it to the `packages` list.
 </Callout>
 
 ## extra_commands
 
-The `extra_commands` field runs additional shell commands during container setup, after package installation and before lifecycle hooks.
+The `extra_commands` field adds raw `RUN` directives to the generated Dockerfile. Unlike hooks, these run at **image build time** as **root**, not at container start.
 
 ```yaml
 extra_commands:
-  - apt-get install -y libssl-dev
+  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  - apt-get install -y libssl-dev libffi-dev
   - ldconfig
 ```
 
-Each entry is a separate command. Use this for setup steps that do not fit neatly into hooks or packages, like compiling a native extension or configuring system libraries.
+Each entry becomes a separate `RUN` line in the Dockerfile, after package installation and env vars. Use this for setup that belongs in the image layer: installing system libraries, compiling native extensions, adding package repositories.
+
+The distinction matters:
+
+| | `extra_commands` | `on_create` |
+|---|---|---|
+| **When** | Image build time | Container start (first connection) |
+| **Runs as** | root | Non-root user (sudo available) |
+| **Cached** | Yes, in Docker layer cache | No, runs every time a new container is created |
+| **Use for** | System packages, native libraries, build tools | Project dependencies, database setup, migrations |
+
+## Error handling
+
+Podspawn is intentionally lenient with hook failures. The philosophy is that a partially configured container is more useful than no container.
+
+| Step | On failure |
+|------|-----------|
+| Dotfiles clone | Warning logged, setup continues |
+| Dotfiles install script | Warning logged, setup continues |
+| Repo clone | Warning logged, remaining repos still clone |
+| `on_create` | Warning logged, `on_start` still runs, shell opens |
+| `on_start` | Warning logged, shell opens |
+
+A non-zero exit code from any hook or script is never fatal. The container always starts.
+
+## User overrides (server mode)
+
+In server mode, individual users can override the project's dotfiles configuration through per-user override files at `/etc/podspawn/users/<username>.yaml`. This lets each developer bring their own dotfiles to any shared project.
+
+```yaml
+# /etc/podspawn/users/alice.yaml
+dotfiles:
+  repo: https://github.com/alice/dotfiles.git
+  install: make install
+env:
+  EDITOR: nvim
+```
+
+User overrides replace the project's dotfiles config entirely (no merging). If a user override specifies dotfiles, the project-level dotfiles are ignored for that user.
+
+User overrides can also add or override environment variables. These are merged with the project's env, with user values taking precedence.
+
+See [User Overrides](/docs/configuration/user-overrides) for the full reference.
+
+## Troubleshooting
+
+### Hook fails silently
+
+Hooks log warnings on failure, but those logs may not be visible in your terminal. To debug:
+
+1. Open a shell into the container: `podspawn shell <machine>`
+2. Run the failing command manually from `/home/<username>`
+3. Check the exit code and output
+
+Since hooks run with `sh -c`, syntax errors or missing commands produce errors that are logged server-side but not shown to the connecting user.
+
+### Dotfiles clone fails
+
+Common causes:
+- The container does not have `git` installed. Add `git` to `packages`.
+- The repo URL requires authentication but no credentials are available inside the container.
+- Network issues from inside the container (DNS, proxy).
+
+### on_create ran but setup is incomplete
+
+Remember that `on_create` runs as the non-root user from `$HOME`. If your script assumes a different working directory, `cd` explicitly:
+
+```yaml
+on_create: |
+  cd /workspace/backend && npm install
+  cd /workspace/frontend && npm install
+```
+
+### Need to re-run on_create
+
+Destroy the container and create a new one. There is no way to re-trigger `on_create` on an existing container, since it is defined as "runs once on creation."
+
+```bash
+podspawn stop <machine>
+podspawn create <machine>
+```
+
+### Hook needs root access
+
+Hooks run as the non-root user, but `sudo` is available without a password:
+
+```yaml
+on_create: |
+  sudo apt-get update && sudo apt-get install -y ripgrep
+  npm install
+```

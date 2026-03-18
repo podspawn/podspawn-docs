@@ -35,7 +35,7 @@ The Podfile always takes priority. There is no merging between the two formats.
 | `postCreateCommand` | `on_create` | Converted to a shell string. |
 | `postStartCommand` | `on_start` | Converted to a shell string. |
 | `features` | (recorded, not expanded) | Features are parsed but not fully processed. |
-| `remoteUser` | (parsed, not mapped) | Recognized but does not affect the Podfile output. |
+| `remoteUser` | (ignored) | Parsed but has no effect. Podspawn always creates its own non-root user (UID 1000) with passwordless sudo, regardless of what `remoteUser` specifies. |
 
 ## JSONC support
 
@@ -84,6 +84,10 @@ Becomes: `pip install -r requirements.txt && npm install` (keys sorted alphabeti
 
 <Callout>
 The conversion is lossy. Features, Docker Compose configurations, Dockerfile-based builds, and other advanced devcontainer capabilities are not supported. For full control, write a `podfile.yaml` instead.
+</Callout>
+
+<Callout>
+Converted hooks (`postCreateCommand` and `postStartCommand`) run as the non-root container user with `sudo` available, the same as native Podfile hooks. See [Hooks & Lifecycle](/docs/podfile/hooks) for details on execution context and error handling.
 </Callout>
 
 ## Example
