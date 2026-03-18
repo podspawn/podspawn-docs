@@ -27,7 +27,7 @@ The wizard creates two files:
 
 You can edit these files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
 
-You're inside a container. Do your work, then exit. The container keeps running until you stop it:
+You're inside a container as a non-root user with passwordless sudo. The prompt shows `username@machinename`. Do your work, then exit. The container keeps running until you stop it:
 
 ```bash
 podspawn list     # see what's running
@@ -60,7 +60,7 @@ sudo podspawn add-user alice --github alice
 ssh alice@yourserver.com
 ```
 
-Alice lands in a container. SFTP, port forwarding, and agent forwarding all work because sshd handles the protocol.
+Alice lands in a container as a non-root user (`alice@yourserver:~$`). SFTP, port forwarding, and agent forwarding all work because sshd handles the protocol.
 
 For the full server walkthrough, see the [Tutorial](/docs/guides/tutorial#server-mode).
 
@@ -73,9 +73,10 @@ For the full server walkthrough, see the [Tutorial](/docs/guides/tutorial#server
 ```
 podspawn create dev
   → docker run (detached, sleep infinity)
+  → create non-root user (UID 1000, passwordless sudo)
 
 podspawn shell dev
-  → docker exec -it (interactive shell)
+  → docker exec -it (interactive shell as non-root user)
 
 podspawn stop dev
   → docker rm -f

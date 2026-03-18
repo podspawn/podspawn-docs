@@ -36,8 +36,9 @@ $ podspawn run test --image node:22
 ## What happens
 
 1. Pulls the image if not already cached locally
-2. Creates a container and attaches an interactive shell
-3. When you disconnect (exit the shell or close the terminal), the container is destroyed
+2. Creates a container with a non-root user (UID 1000, home at `/home/<username>`, passwordless sudo)
+3. Attaches an interactive shell as that user
+4. When you disconnect (exit the shell or close the terminal), the container is destroyed
 
 No state is persisted after disconnect. If you need a machine that survives disconnects, use `podspawn create` instead.
 

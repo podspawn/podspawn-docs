@@ -31,7 +31,7 @@ $ podspawn shell alice@backend
 
 ## How it works
 
-`podspawn shell` uses Docker exec to open a shell inside the container. No SSH is involved, so there is nothing to configure and no port conflicts to worry about.
+`podspawn shell` uses Docker exec to open a shell inside the container as your non-root user. No SSH is involved, so there is nothing to configure and no port conflicts to worry about. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
 This is the primary way to use podspawn locally. SSH is a separate feature for remote access, team servers, and IDE integration.
 

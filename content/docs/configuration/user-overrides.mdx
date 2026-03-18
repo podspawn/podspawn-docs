@@ -38,11 +38,11 @@ dotfiles:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `repo` | `string` | `""` | Git URL of the dotfiles repository. Cloned into `/root/dotfiles` inside the container. |
-| `install` | `string` | `""` | Optional install command to run after cloning. Executed with `sh -c` from the `/root/dotfiles` directory. |
+| `repo` | `string` | `""` | Git URL of the dotfiles repository. Cloned into `~/dotfiles` (i.e., `/home/<username>/dotfiles`) inside the container. |
+| `install` | `string` | `""` | Optional install command to run after cloning. Executed with `sh -c` from the `~/dotfiles` directory. |
 
 <Callout>
-The install script runs as root inside the container. A non-zero exit code from the install script is logged as a warning but does not prevent the session from starting.
+The install script runs as the non-root container user. Use `sudo` for operations that need root privileges. A non-zero exit code from the install script is logged as a warning but does not prevent the session from starting.
 </Callout>
 
 ## Override precedence

@@ -9,6 +9,18 @@ In server mode, podspawn delegates authentication and encryption to native sshd 
 
 This guide covers the default security configuration and options for further hardening.
 
+## Non-root containers
+
+Containers never run as root. Podspawn creates a non-root user inside every container at startup, matching your OS username (local mode) or SSH username (server mode). The user has:
+
+- **UID 1000** and a home directory at `/home/<username>`
+- **Passwordless sudo** for when you actually need root (e.g., `apt-get install`)
+- **Shell prompt** showing `username@machinename` (e.g., `karthik@dev:~$`) instead of `root@containerid`
+
+User creation is idempotent. Reconnecting to an existing container skips user setup. This works across Ubuntu, Debian, Alpine, Fedora, and Rocky Linux. On Alpine, `shadow` and `sudo` are installed automatically since they are not included in the base image.
+
+Lifecycle hooks (`on_create`, `on_start`) and dotfiles scripts run as the non-root user. Use `sudo` for operations that need root privileges.
+
 ## Default security posture
 
 Every container launched by podspawn ships with these security settings out of the box. You do not need to configure anything to get this baseline.
@@ -154,7 +166,7 @@ security:
   readonly_rootfs: true
   tmpfs:
     /tmp: "rw,noexec,nosuid,size=512m"
-    /home/dev: "rw,exec,nosuid,size=2g"
+    /home/<username>: "rw,exec,nosuid,size=2g"
 ```
 
 When `readonly_rootfs` is enabled, you must provide writable tmpfs mounts for directories that need write access:
@@ -162,7 +174,7 @@ When `readonly_rootfs` is enabled, you must provide writable tmpfs mounts for di
 | Mount | Flags | Purpose |
 |-------|-------|---------|
 | `/tmp` | `rw,noexec,nosuid,size=512m` | Temporary files. `noexec` prevents running binaries from /tmp. |
-| `/home/dev` | `rw,exec,nosuid,size=2g` | User's home directory. `exec` is needed for development tools. |
+| `/home/<username>` | `rw,exec,nosuid,size=2g` | User's home directory. `exec` is needed for development tools. |
 
 The `nosuid` flag on both prevents setuid/setgid exploitation.
 

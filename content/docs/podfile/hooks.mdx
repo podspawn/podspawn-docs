@@ -31,7 +31,7 @@ on_start: echo "welcome back"
 Use this for tasks that should run on every connection: starting background services, printing status messages, refreshing environment state.
 
 <Callout>
-Both hooks are executed with `sh -c` inside the container. A non-zero exit code is logged as a warning but does not prevent the session from starting. The container remains usable even if hooks fail.
+Both hooks run as the non-root container user (not root). Use `sudo` for operations that need root privileges. A non-zero exit code is logged as a warning but does not prevent the session from starting. The container remains usable even if hooks fail.
 </Callout>
 
 ## Execution order
@@ -51,7 +51,7 @@ On reattach to an existing container:
 
 ## Dotfiles
 
-The `dotfiles` field clones a git repository into `/root/dotfiles` inside the container and optionally runs an install script.
+The `dotfiles` field clones a git repository into `~/dotfiles` (i.e., `/home/<username>/dotfiles`) inside the container and optionally runs an install script.
 
 ```yaml
 dotfiles:
@@ -62,13 +62,15 @@ dotfiles:
 | Field | Type | Description |
 |-------|------|-------------|
 | `repo` | `string` | Git URL to clone. |
-| `install` | `string` | Command to run after cloning. Executed with `sh -c` from the `/root/dotfiles` directory. |
+| `install` | `string` | Command to run after cloning. Executed with `sh -c` from the `~/dotfiles` directory. |
 
-The install command runs as:
+The install command runs as the non-root container user:
 
 ```sh
-cd /root/dotfiles && ./install.sh
+cd ~/dotfiles && ./install.sh
 ```
+
+Use `sudo` inside your install script for operations that need root (e.g., `sudo apt-get install`).
 
 If the clone fails, the error is returned and setup stops. If the install script exits non-zero, it is logged as a warning and setup continues.
 

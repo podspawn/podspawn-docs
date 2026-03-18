@@ -39,7 +39,10 @@ $ podspawn create dev --image alpine:3.20
 
 1. Pulls the image if not already cached locally
 2. Creates a container with `sleep infinity` as the entrypoint to keep it alive
-3. Registers the machine in the state database
+3. Creates a non-root user inside the container (UID 1000, home at `/home/<username>`, passwordless sudo)
+4. Registers the machine in the state database
+
+The container runs as your OS username, not root. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
 The machine keeps running until you stop it. Attach to it with `podspawn shell`, or list your machines with `podspawn list`.
 

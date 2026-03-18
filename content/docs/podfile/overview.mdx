@@ -116,7 +116,7 @@ Environment variables set inside the container. These are merged with variables 
 
 | Sub-field | Type | Description |
 |-----------|------|-------------|
-| `repo` | `string` | Git URL to clone into `/root/dotfiles`. |
+| `repo` | `string` | Git URL to clone into `~/dotfiles` (`/home/<username>/dotfiles`). |
 | `install` | `string` | Command to run after cloning, executed from the dotfiles directory. |
 
 See [Hooks](/docs/podfile/hooks) for details on execution behavior.
