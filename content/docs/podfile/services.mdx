@@ -3,9 +3,22 @@ title: Services
 description: How to declare companion service containers (databases, caches, message brokers) that run alongside your development container.
 ---
 
-The `services` field in a Podfile lets you declare companion containers that run alongside your main development container. These are typically databases, caches, or other infrastructure your project depends on.
+The `services` field in a Podfile declares companion containers that run alongside your main development container. These are sidecar containers for databases, caches, message brokers, or anything else your project depends on, started on a shared Docker network so your code can reach them by name.
 
-## Example
+## How services work
+
+When podspawn creates a session, it:
+
+1. Creates a Docker network for the session.
+2. Starts each service container on that network, in the order they're listed.
+3. Starts the main development container on the same network.
+4. Runs `on_create` hooks.
+
+Every container on the network can reach every other container by name. Your app connects to `postgres:5432`, not `localhost:5432` or some IP address.
+
+## Service configuration
+
+Each service entry has five fields:
 
 ```yaml
 services:
@@ -17,11 +30,231 @@ services:
       POSTGRES_DB: myapp
     volumes:
       - pgdata:/var/lib/postgresql/data
+```
 
+### Field reference
+
+| Field     | Type                | Required | Description |
+|-----------|---------------------|----------|-------------|
+| `name`    | `string`            | yes      | Identifier used as the DNS hostname on the shared network and as part of the container name. Must be unique within a Podfile. |
+| `image`   | `string`            | yes      | Docker image to run. Any valid image reference works: `postgres:16`, `redis:7-alpine`, `ghcr.io/org/image:tag`. |
+| `ports`   | `[]int`             | no       | Ports the service listens on. Used for documentation and port forwarding. Does not affect network connectivity between containers. |
+| `env`     | `map[string]string` | no       | Environment variables passed to the service container at startup. |
+| `volumes` | `[]string`          | no       | Volume mounts in `source:target` format. See [Volumes](#volumes). |
+
+## DNS discovery
+
+All containers in a session share a Docker network. The `name` field is registered as a network alias on that network, which means Docker's embedded DNS resolves the service name to the container's IP address.
+
+From inside your development container:
+
+```bash
+# These all work because "postgres" resolves to the service container's IP
+psql -h postgres -U devuser myapp
+curl http://elasticsearch:9200
+redis-cli -h redis ping
+```
+
+This also works between services. If you have both `postgres` and `redis` defined, the postgres container can reach the redis container at `redis:6379`, and vice versa. All containers on the session network see each other.
+
+<Callout type="info">
+DNS resolution uses the `name` field, not the container name. If your service is named `db`, your code connects to `db`, even though the actual Docker container name is longer (see [Container naming](#container-naming)).
+</Callout>
+
+## Container naming
+
+Service containers are named `<session-prefix>-<service-name>`. For example:
+
+| Session prefix               | Service name | Container name                     |
+|------------------------------|--------------|------------------------------------|
+| `podspawn-alice-myproject`   | `postgres`   | `podspawn-alice-myproject-postgres` |
+| `podspawn-alice-myproject`   | `redis`      | `podspawn-alice-myproject-redis`    |
+
+This naming convention prevents collisions between services in different sessions and makes it easy to identify which service belongs to which session.
+
+## Lifecycle
+
+### Startup order
+
+Services are started sequentially in the order they appear in the Podfile, before the main container's `on_create` hook runs. This means your `on_create` script can safely assume services are running:
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: myapp
+
+on_create: |
+  # postgres is already running at this point
+  sleep 2  # wait for postgres to accept connections
+  psql -h postgres -U postgres -d myapp -f schema.sql
+```
+
+<Callout>
+"Started" means the Docker container is running, not that the service inside it is ready to accept connections. Databases often need a few seconds after container start before they accept queries. Use a wait loop or a tool like `wait-for-it` in your `on_create` hook if you need to run migrations at setup time.
+</Callout>
+
+### Shutdown
+
+Services are stopped and removed when the session ends (after the grace period expires or `max_lifetime` is reached). Cleanup is handled by `StopServices`, which calls `RemoveContainer` on each service container.
+
+### Partial failure
+
+If a service fails to start, all previously started services for that session are cleaned up before the error is returned. This prevents orphaned containers.
+
+For example, if you have three services and the second one fails to pull its image:
+
+1. Service A starts successfully.
+2. Service B fails.
+3. Service A is removed.
+4. The session creation fails with an error.
+
+### Cleanup behavior
+
+Service cleanup is best-effort. If a container cannot be removed (e.g., Docker daemon issue, container already removed), the failure is logged as a warning and cleanup continues with the remaining containers. This prevents one stuck container from blocking cleanup of others.
+
+Service containers are labeled for identification:
+
+```
+managed-by: podspawn
+podspawn-service: <name>
+```
+
+If cleanup fails and you have orphaned containers, you can find and remove them:
+
+```bash
+docker ps -a --filter label=managed-by=podspawn --filter label=podspawn-service
+docker rm -f $(docker ps -aq --filter label=managed-by=podspawn)
+```
+
+## Volumes
+
+The `volumes` field accepts strings in `source:target` format. The source determines the volume type.
+
+### Named volumes
+
+If the source does not start with `/`, Docker treats it as a named volume:
+
+```yaml
+volumes:
+  - pgdata:/var/lib/postgresql/data
+```
+
+Docker creates a named volume called `pgdata` (or reuses it if it already exists). Named volumes persist across container restarts within the same session. When the session is destroyed, the containers and their associated volumes are removed.
+
+### Host mounts
+
+If the source starts with `/`, Docker treats it as a bind mount from the host filesystem:
+
+```yaml
+volumes:
+  - /data/alice/pgdata:/var/lib/postgresql/data
+```
+
+Host mounts persist across sessions because the data lives on the host, not inside Docker. Use these when you need data to survive session destruction.
+
+### Malformed volume specs
+
+Volume strings that don't contain a `:` separator are skipped with a warning. Always use the `source:target` format.
+
+```yaml
+# Bad: no target path, will be skipped
+volumes:
+  - pgdata
+
+# Good: source:target format
+volumes:
+  - pgdata:/var/lib/postgresql/data
+```
+
+## Examples
+
+### PostgreSQL
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: myapp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+```
+
+Connect from your code:
+
+```
+postgresql://devuser:devpass@postgres:5432/myapp
+```
+
+### MySQL
+
+```yaml
+services:
+  - name: mysql
+    image: mysql:8
+    ports: [3306]
+    env:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: myapp
+      MYSQL_USER: devuser
+      MYSQL_PASSWORD: devpass
+    volumes:
+      - mysqldata:/var/lib/mysql
+```
+
+Connect from your code:
+
+```
+mysql://devuser:devpass@mysql:3306/myapp
+```
+
+### Redis
+
+```yaml
+services:
   - name: redis
-    image: redis:7
+    image: redis:7-alpine
     ports: [6379]
+```
 
+Connect from your code:
+
+```
+redis://redis:6379
+```
+
+Redis with no extra config is the simplest service. No volumes needed unless you want persistence, no env vars required.
+
+### MongoDB
+
+```yaml
+services:
+  - name: mongo
+    image: mongo:7
+    ports: [27017]
+    env:
+      MONGO_INITDB_ROOT_USERNAME: devuser
+      MONGO_INITDB_ROOT_PASSWORD: devpass
+    volumes:
+      - mongodata:/data/db
+```
+
+Connect from your code:
+
+```
+mongodb://devuser:devpass@mongo:27017
+```
+
+### RabbitMQ
+
+```yaml
+services:
   - name: rabbitmq
     image: rabbitmq:3-management
     ports: [5672, 15672]
@@ -30,61 +263,126 @@ services:
       RABBITMQ_DEFAULT_PASS: dev
 ```
 
-## Fields
-
-Each service entry has the following fields:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `string` | yes | Identifier for the service. Used as the DNS hostname on the shared Docker network and as part of the container name. |
-| `image` | `string` | yes | Docker image to run. Any valid image reference works. |
-| `ports` | `[]int` | no | Ports the service listens on. Used for documentation and port forwarding. |
-| `env` | `map[string]string` | no | Environment variables passed to the service container. |
-| `volumes` | `[]string` | no | Volume mounts in `source:target` format. |
-
-## Docker network and DNS discovery
-
-All service containers and the main development container are placed on a shared Docker network. The `name` field is registered as the container's network alias, which means your application can reach services by hostname.
-
-For example, with a service named `postgres`, your app connects to:
+Connect from your code:
 
 ```
-postgresql://devuser:devpass@postgres:5432/myapp
+amqp://dev:dev@rabbitmq:5672
 ```
 
-No `localhost`, no IP addresses, no port mapping gymnastics. The service name is the hostname.
+The management UI is available at `http://rabbitmq:15672` from inside the container (use port forwarding to access it from your host).
 
-## Container naming
-
-Service containers are named `<session-prefix>-<service-name>`. For example, if the session prefix is `podspawn-alice-myproject`, a postgres service gets the container name `podspawn-alice-myproject-postgres`.
-
-## Lifecycle
-
-Service containers follow the same lifecycle as the main container:
-
-- **Started** when the session is created, before `on_create` hooks run.
-- **Stopped and removed** when the session ends (after the grace period expires or `max_lifetime` is reached).
-
-If a service fails to start, all previously started services for that session are cleaned up before the error is returned. This prevents orphaned containers.
-
-## Cleanup behavior
-
-Service cleanup is best-effort. If a service container cannot be removed (e.g., Docker daemon issue), the failure is logged as a warning and cleanup continues with the remaining containers.
-
-<Callout>
-Service containers are labeled with `managed-by: podspawn` and `podspawn-service: <name>` for identification. These labels can be used to find orphaned service containers if cleanup fails.
-</Callout>
-
-## Volume persistence
-
-Named volumes (like `pgdata:/var/lib/postgresql/data`) persist across container restarts within the same session. However, when a session is fully destroyed, the volumes are removed with the containers.
-
-For data that needs to survive across sessions, use a host-mounted volume with an absolute path:
+### Elasticsearch
 
 ```yaml
 services:
+  - name: elasticsearch
+    image: elasticsearch:8.13.0
+    ports: [9200]
+    env:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+```
+
+Connect from your code:
+
+```
+http://elasticsearch:9200
+```
+
+<Callout>
+Elasticsearch is resource-heavy. Set `ES_JAVA_OPTS` to limit heap size, and consider setting resource limits in the Podfile's `resources` field to prevent it from consuming all available memory.
+</Callout>
+
+### MinIO (S3-compatible storage)
+
+```yaml
+services:
+  - name: minio
+    image: minio/minio:latest
+    ports: [9000, 9001]
+    env:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+```
+
+Note: MinIO requires a custom command to start (`minio server /data --console-address :9001`). Since podspawn uses the image's default entrypoint, use an image that has this configured, or use a wrapper image.
+
+## Multi-service example
+
+A typical web application with a database, cache, and message broker:
+
+```yaml
+base: ubuntu:24.04
+
+packages:
+  - nodejs@22
+  - python@3.12
+
+services:
   - name: postgres
     image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: webapp
     volumes:
-      - /data/alice/pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+
+  - name: redis
+    image: redis:7-alpine
+    ports: [6379]
+
+  - name: rabbitmq
+    image: rabbitmq:3-management
+    ports: [5672, 15672]
+    env:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: secret
+
+env:
+  DATABASE_URL: "postgresql://app:secret@postgres:5432/webapp"
+  REDIS_URL: "redis://redis:6379"
+  AMQP_URL: "amqp://app:secret@rabbitmq:5672"
+
+on_create: |
+  cd /workspace && npm install
+  sleep 3
+  npx prisma migrate deploy
 ```
+
+All three services are on the same network as the dev container. The `env` block sets connection strings using service names as hostnames, so your application code can read from environment variables without hardcoding connection details.
+
+## Connecting from your code
+
+The pattern for connection strings is always:
+
+```
+<protocol>://<user>:<password>@<service-name>:<port>/<database>
+```
+
+Where `<service-name>` is exactly the `name` field from your Podfile. Common patterns:
+
+| Service        | Connection string pattern |
+|----------------|--------------------------|
+| PostgreSQL     | `postgresql://user:pass@postgres:5432/dbname` |
+| MySQL          | `mysql://user:pass@mysql:3306/dbname` |
+| Redis          | `redis://redis:6379` |
+| MongoDB        | `mongodb://user:pass@mongo:27017` |
+| RabbitMQ       | `amqp://user:pass@rabbitmq:5672` |
+| Elasticsearch  | `http://elasticsearch:9200` |
+
+Set these as environment variables in the Podfile's `env` field so your application reads them from the environment:
+
+```yaml
+env:
+  DATABASE_URL: "postgresql://app:secret@postgres:5432/myapp"
+  REDIS_URL: "redis://redis:6379"
+```
+
+This keeps connection details in one place and follows twelve-factor app conventions.

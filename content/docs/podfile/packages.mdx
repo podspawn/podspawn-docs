@@ -3,102 +3,307 @@ title: Packages
 description: How podspawn installs packages in containers, including apt packages, versioned runtimes, and the built-in version map.
 ---
 
-The `packages` field in a Podfile lists software to install in the container during setup. Podspawn splits packages into two categories: plain apt packages and versioned runtime installs.
+The `packages` field in a Podfile lists software to install in the container image at build time. Podspawn handles everything from apt packages to versioned language runtimes, generating a Dockerfile behind the scenes.
 
 ## Syntax
 
+Package entries come in two forms:
+
 ```yaml
 packages:
-  - git                # apt package (latest)
-  - curl               # apt package (latest)
-  - nodejs@22          # versioned runtime
-  - python@3.12        # versioned runtime
-  - go@1.22            # versioned runtime (any version)
-  - rust               # apt package (no version = apt)
-  - rust@stable        # versioned runtime (any version)
+  - git          # plain name: installed via apt-get
+  - nodejs@22    # name@version: looked up in the version map
 ```
 
-Plain package names (no `@`) are installed with `apt-get install -y`. Names with `@version` are looked up in the built-in version map.
+- **Plain name** (no `@`): installed with `apt-get install -y <name>`.
+- **Name with version** (`name@version`): looked up in the built-in version map. If the name is not in the map, podspawn falls back to apt with a version glob (see [Unknown versioned packages](#unknown-versioned-packages)).
+
+A full example:
+
+```yaml
+packages:
+  - git
+  - curl
+  - build-essential
+  - nodejs@22
+  - python@3.12
+  - go@1.23.4
+  - rust@stable
+```
 
 ## Version map
 
-Podspawn ships with install sequences for common development runtimes. These are defined in the source and handle repository setup, GPG keys, and installation automatically.
+Podspawn ships with install sequences for four language runtimes. These handle repository setup, GPG keys, architecture detection, and installation automatically, so you don't need to write Dockerfile boilerplate.
 
-### nodejs
+### Node.js
 
-Installed via NodeSource.
+Installed via [NodeSource](https://github.com/nodesource/distributions). Each version maps to a specific NodeSource setup script.
 
-| Version | Supported |
-|---------|-----------|
-| `18` | Yes |
-| `20` | Yes |
-| `22` | Yes |
+| Version | Install method |
+|---------|----------------|
+| `18`    | NodeSource `setup_18.x` |
+| `20`    | NodeSource `setup_20.x` |
+| `22`    | NodeSource `setup_22.x` |
 
 ```yaml
 packages:
   - nodejs@22
 ```
 
-### python
+Using a version not in the table (e.g., `nodejs@16`) produces an error:
 
-Installed via the deadsnakes PPA.
+```
+unsupported version nodejs@16; available: 18, 20, 22
+```
 
-| Version | Supported |
-|---------|-----------|
-| `3.11` | Yes |
-| `3.12` | Yes |
-| `3.13` | Yes |
+Node.js versions are fixed because each requires a different NodeSource setup script. To install an unlisted version, use `extra_commands` with nvm or fnm instead.
 
-Installs both the interpreter and venv module (e.g., `python3.12` and `python3.12-venv`).
+### Python
+
+Installed via the [deadsnakes PPA](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa). Both the interpreter and the venv module are installed (e.g., `python3.12` and `python3.12-venv`).
+
+| Version | Packages installed |
+|---------|--------------------|
+| `3.11`  | `python3.11`, `python3.11-venv` |
+| `3.12`  | `python3.12`, `python3.12-venv` |
+| `3.13`  | `python3.13`, `python3.13-venv` |
 
 ```yaml
 packages:
   - python@3.12
 ```
 
-### go
+Like Node.js, Python versions are fixed. Using an unsupported version (e.g., `python@3.10`) produces an error listing the available versions.
 
-Installed from the official Go downloads. Accepts any version string, so you are not limited to a fixed set.
+### Go
+
+Installed from [go.dev/dl](https://go.dev/dl/). Accepts **any version string**, so you are not limited to a fixed set.
 
 ```yaml
 packages:
   - go@1.22
   - go@1.23.4
+  - go@1.25rc1
 ```
 
-The binary is downloaded for the container's architecture and extracted to `/usr/local/go`, with a symlink at `/usr/local/bin/go`.
+The binary tarball is downloaded for the container's architecture (`dpkg --print-architecture`), extracted to `/usr/local/go`, and symlinked at `/usr/local/bin/go`.
 
-### rust
+The version string is interpolated directly into the download URL:
 
-Installed via rustup. Accepts any toolchain specifier as the version.
+```
+https://go.dev/dl/go<VERSION>.linux-<ARCH>.tar.gz
+```
+
+If the version doesn't exist on the Go downloads page, the `curl` command fails at build time with a clear HTTP error.
+
+### Rust
+
+Installed via [rustup](https://rustup.rs/). Accepts **any toolchain specifier** as the version.
 
 ```yaml
 packages:
   - rust@stable
   - rust@nightly
   - rust@1.78.0
+  - rust@nightly-2024-01-15
 ```
+
+The version string is passed directly to `rustup --default-toolchain`, so anything rustup understands works: `stable`, `beta`, `nightly`, specific versions, dated nightlies.
+
+### Summary table
+
+| Runtime  | Fixed versions?     | Supported values                         | Install method       |
+|----------|---------------------|------------------------------------------|----------------------|
+| `nodejs` | Yes (3 versions)    | `18`, `20`, `22`                         | NodeSource           |
+| `python` | Yes (3 versions)    | `3.11`, `3.12`, `3.13`                   | deadsnakes PPA       |
+| `go`     | No (any version)    | Any Go release version                   | Official tarball     |
+| `rust`   | No (any toolchain)  | `stable`, `nightly`, semver, dated nightly | rustup              |
 
 ## Unknown versioned packages
 
-If a package name with a version is not in the built-in map, podspawn falls back to apt with a version glob:
+If a package name with `@version` is not in the version map, podspawn falls back to apt version pinning with a glob:
 
 ```yaml
 packages:
-  - nginx@1.24    # becomes: apt-get install -y nginx=1.24*
+  - nginx@1.24        # becomes: apt-get install -y nginx=1.24*
+  - postgresql@15     # becomes: apt-get install -y postgresql=15*
 ```
 
-This works for any apt package that supports version pinning.
-
-## How it works
-
-Under the hood, `InstallCommands` splits the package list into two groups:
-
-1. **apt packages** - collected and installed in a single `apt-get install -y` call.
-2. **special install sequences** - run as individual shell commands in order.
-
-Apt packages are always installed first, followed by the versioned runtime installs.
+The `=version*` glob lets apt match any patch release within that version. This works for any package in the configured apt repositories.
 
 <Callout>
-If you specify a version for a known runtime that is not in the supported list (e.g., `nodejs@16`), podspawn returns an error listing the available versions. For runtimes that accept any version (Go, Rust), the version string is passed through directly.
+The glob appends `*` after the version, so `nginx@1.24` matches `1.24.0-1ubuntu1`, `1.24.1-1`, etc. If you need an exact version, include the full version string: `nginx@1.24.0-1ubuntu1`.
 </Callout>
+
+## How the Dockerfile is generated
+
+When podspawn builds a container image, it calls `InstallCommands` to split the package list into two groups, then writes them into a Dockerfile.
+
+### Step 1: Parse
+
+Each package string is parsed into a name and optional version. `git` becomes `{Name: "git"}`. `nodejs@22` becomes `{Name: "nodejs", Version: "22"}`.
+
+### Step 2: Classify
+
+Each parsed package is classified:
+
+1. **No version** -- added to the apt batch.
+2. **Version + name in version map + exact version match** -- the predefined install commands are used.
+3. **Version + name in version map + wildcard (`*`)** -- the version is interpolated into the install template (Go, Rust).
+4. **Version + name in version map + no match** -- error with available versions listed.
+5. **Version + name NOT in version map** -- falls back to apt with `name=version*`.
+
+### Step 3: sudo injection
+
+Podspawn automatically adds `sudo` to the apt package list if it isn't already there. Every Podfile-built image gets sudo so the non-root container user can elevate when needed. You never need to list `sudo` explicitly.
+
+### Step 4: Write Dockerfile
+
+The generated Dockerfile follows this structure:
+
+```dockerfile
+FROM ubuntu:24.04
+
+# Shell set to bash with strict mode (only if special installs exist)
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# Special installs first (each as a separate RUN layer)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+RUN apt-get install -y nodejs
+
+# Apt packages batched into a single RUN
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# Environment variables from the Podfile
+ENV EDITOR="vim"
+
+# Extra commands (from extra_commands field)
+RUN echo "custom setup"
+```
+
+Key details:
+
+- **Special installs run first** as individual `RUN` commands, because they often set up apt repositories that the subsequent apt batch depends on (e.g., NodeSource adds a repo, then `apt-get install nodejs` installs from it).
+- **Apt packages are sorted alphabetically** and installed in a single `RUN` to reduce image layers.
+- **`/var/lib/apt/lists/*` is cleaned up** after apt installs to reduce image size.
+- **Bash strict mode** (`-euo pipefail`) is enabled when special installs exist, so piped commands fail properly (e.g., `curl | bash` fails if curl fails).
+
+## Cross-distro support
+
+Package installation currently assumes an apt-based distribution (Ubuntu, Debian). The NodeSource scripts, deadsnakes PPA, and apt-get commands all require apt.
+
+If you need Alpine, RHEL, or another distribution, use a pre-built base image that already has your tools installed:
+
+```yaml
+base: your-org/alpine-dev:latest
+packages: []  # skip apt entirely
+```
+
+Or use `extra_commands` to run distribution-specific install commands:
+
+```yaml
+base: alpine:3.19
+extra_commands:
+  - apk add --no-cache git curl nodejs npm
+```
+
+## Tips
+
+### Adding custom apt repositories
+
+If a package isn't in the default Ubuntu repositories, add the repository in `extra_commands` before listing the package:
+
+```yaml
+extra_commands:
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+
+packages:
+  - docker-ce-cli
+```
+
+Note that `extra_commands` run after the apt batch in the Dockerfile, so the repo must be added first. If ordering matters, put everything in `extra_commands`:
+
+```yaml
+extra_commands:
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update && apt-get install -y docker-ce-cli
+```
+
+### Installing from source
+
+For tools not available as apt packages, use `extra_commands`:
+
+```yaml
+extra_commands:
+  - curl -LO https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-linux64.tar.gz
+  - tar -C /usr/local -xzf nvim-linux64.tar.gz
+  - ln -s /usr/local/nvim-linux64/bin/nvim /usr/local/bin/nvim
+  - rm nvim-linux64.tar.gz
+```
+
+### Multiple language runtimes
+
+You can install multiple runtimes in the same container:
+
+```yaml
+packages:
+  - nodejs@22
+  - python@3.12
+  - go@1.23.4
+  - rust@stable
+```
+
+Each runtime's install commands run independently. There are no conflicts between them.
+
+## Troubleshooting
+
+### "unsupported version X@Y; available: ..."
+
+You specified a version that isn't in the version map for a runtime with fixed versions (Node.js or Python). Use one of the listed versions, or install a different version via `extra_commands`.
+
+### Package not found during build
+
+```
+E: Unable to find a package named <name>
+```
+
+The package doesn't exist in the default apt repositories for the base image. Either:
+
+- Check the package name (e.g., `python3` not `python`, `build-essential` not `build-essentials`).
+- Add a custom apt repository via `extra_commands`.
+- Use a different base image that includes the package.
+
+### Version glob matches nothing
+
+```
+E: Version '<name>=<version>*' for '<name>' was not found
+```
+
+The version glob for an unknown versioned package didn't match any available apt version. Check `apt-cache policy <name>` in the base image to see available versions.
+
+### Go download fails
+
+```
+curl: (22) The requested URL returned error: 404
+```
+
+The Go version string doesn't match a real release. Check [go.dev/dl](https://go.dev/dl/) for valid version numbers. Version strings should not include the `go` prefix (use `1.23.4`, not `go1.23.4`).
+
+### Rust toolchain not found
+
+```
+error: toolchain '<version>' is not installable
+```
+
+The version string isn't a valid rustup toolchain specifier. Valid examples: `stable`, `nightly`, `1.78.0`, `nightly-2024-01-15`.
+
+### Build is slow
+
+Each special install runs as a separate Docker layer. If you're iterating on packages, put the slow installs (Go, Rust) first in the list so Docker can cache them while you change the apt packages below.
