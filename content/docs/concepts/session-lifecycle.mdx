@@ -1,9 +1,57 @@
 ---
 title: Session Lifecycle
-description: How podspawn manages container lifetimes with reference-counted connections, grace periods, and reconciliation
+description: How podspawn manages container lifetimes in local and server mode, including idle resource cost, grace periods, and reconciliation
 ---
 
-A session in podspawn maps a `(user, project)` pair to a running container. When alice runs `ssh alice@work.pod`, podspawn either creates a new container or reattaches to an existing one. When she disconnects, the container enters a grace period. When the grace period expires, the container and all its companion services are destroyed.
+A session in podspawn maps a `(user, project)` pair to a running container. The lifecycle differs between local mode and server mode. Local mode is simpler: containers run until you stop them. Server mode adds reference-counted connections, grace periods, and automatic cleanup.
+
+## Local mode lifecycle
+
+In local mode, container lifecycle is manual and explicit:
+
+```
+create  ──>  running  ──>  stop  ──>  gone
+               │                        ▲
+               │      podspawn stop     │
+               └────────────────────────┘
+```
+
+There are no grace periods, no cleanup daemon, and no max lifetimes. A machine created with `podspawn create` runs until you destroy it with `podspawn stop`. A machine created with `podspawn run` is ephemeral and destroys itself when you exit the shell.
+
+### Idle containers
+
+A container sitting idle (no shell attached) runs `sleep infinity` as PID 1. The actual resource cost:
+
+| Resource | Idle cost | Notes |
+|----------|-----------|-------|
+| CPU | ~0% | `sleep infinity` makes a single syscall and blocks forever |
+| Memory | 5-15 MB | Kernel overhead for the container's namespaces, cgroups, and the sleep process |
+| Disk | 0 | No writes unless you left something running inside |
+
+For comparison, a browser tab uses 50-300 MB. An idle podspawn container is negligible on a laptop.
+
+### Why not pause?
+
+Docker supports `docker pause`, which sends SIGSTOP to freeze all processes. It sounds like it would help, but:
+
+- **It doesn't free memory.** Paused containers keep their full memory allocation. The only resource it saves is CPU, which is already ~0% for a sleeping container.
+- **It breaks expectations.** A paused container can't respond to `docker exec`, so `podspawn shell` would need to unpause first, adding latency and failure modes for no real benefit.
+- **`docker stop` frees memory but costs startup time.** Stopping a container releases everything, but restarting takes 1-2 seconds and loses any running background processes. This tradeoff makes sense on servers with many users, not on a laptop with one or two containers.
+
+If you're done for the day, `podspawn stop` is the right call. If you're switching between tasks, leave it running. The cost is not worth optimizing.
+
+### When to stop machines
+
+| Situation | Recommendation |
+|-----------|---------------|
+| Switching to a different project for an hour | Leave it running |
+| Done for the day | `podspawn stop` or leave it, either is fine |
+| Low on memory (running heavy local processes) | `podspawn stop` to reclaim the memory limit |
+| Docker restart / system reboot | Containers are destroyed automatically |
+
+## Server mode lifecycle
+
+In server mode, lifecycle is automatic. When a user runs `ssh user@project.pod`, podspawn either creates a new container or reattaches to an existing one. When she disconnects, the container enters a grace period. When the grace period expires, the container and all its companion services are destroyed.
 
 ## Session state
 

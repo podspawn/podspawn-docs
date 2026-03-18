@@ -44,7 +44,7 @@ $ podspawn create dev --image alpine:3.20
 
 The container runs as your OS username, not root. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
-The machine keeps running until you stop it. Attach to it with `podspawn shell`, or list your machines with `podspawn list`.
+The machine keeps running until you stop it. An idle machine uses negligible resources (~0% CPU, 5-15 MB memory). Attach to it with `podspawn shell`, or list your machines with `podspawn list`. See [Session Lifecycle](/docs/concepts/session-lifecycle#idle-containers) for details on idle resource cost.
 
 ## Lifecycle
 
