@@ -10,7 +10,9 @@ import {
   Monitor,
   Cloud,
   Lock,
+  HardDrive,
 } from 'lucide-react';
+import { TerminalDemo } from '@/components/terminal-demo';
 
 function FeatureCard({
   icon: Icon,
@@ -69,14 +71,14 @@ export default function HomePage() {
               Open source, AGPL-3.0 licensed
             </div>
             <h1 className="mb-6 text-4xl font-bold tracking-tight text-fd-foreground sm:text-5xl lg:text-6xl">
-              SSH in, get a container.
+              Your workspace,
               <br />
-              <span className="text-fd-primary">Exit, it&apos;s gone.</span>
+              <span className="text-fd-primary">one SSH away.</span>
             </h1>
             <p className="mb-8 max-w-2xl text-lg text-fd-muted-foreground leading-relaxed">
-              Podspawn hooks into your existing sshd to spawn ephemeral Docker
-              containers on SSH connection. No custom daemon, no port 2222, no
-              key exchange code. Two lines of sshd_config. Every SSH feature works.
+              Persistent dev environments that survive disconnects. Ephemeral
+              sandboxes for agents and CI. All over native SSH. Two lines
+              of sshd_config. Every SSH feature works.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
@@ -97,35 +99,7 @@ export default function HomePage() {
           </div>
 
           {/* Terminal preview */}
-          <div className="mt-16 overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl">
-            <div className="flex items-center gap-2 border-b border-fd-border px-4 py-3">
-              <div className="size-3 rounded-full bg-red-500/80" />
-              <div className="size-3 rounded-full bg-yellow-500/80" />
-              <div className="size-3 rounded-full bg-green-500/80" />
-              <span className="ml-3 text-xs text-fd-muted-foreground font-mono">terminal</span>
-            </div>
-            <div className="p-6 font-mono text-sm leading-relaxed">
-              <div className="text-fd-muted-foreground">
-                <span className="text-green-400">$</span> ssh alice@backend.pod
-              </div>
-              <div className="mt-1 text-fd-muted-foreground opacity-60">
-                Creating container podspawn-alice-backend...
-              </div>
-              <div className="mt-1 text-fd-muted-foreground opacity-60">
-                Starting postgres:16, redis:7 on podspawn-alice-backend-net...
-              </div>
-              <div className="mt-3 text-fd-foreground">
-                <span className="text-blue-400">alice@backend</span>:<span className="text-fd-primary">~/workspace</span>$ npm test
-              </div>
-              <div className="mt-1 text-green-400">Tests: 47 passed, 47 total</div>
-              <div className="mt-3 text-fd-foreground">
-                <span className="text-blue-400">alice@backend</span>:<span className="text-fd-primary">~/workspace</span>$ exit
-              </div>
-              <div className="mt-1 text-fd-muted-foreground opacity-60">
-                Grace period: 60s. Container preserved for reconnect.
-              </div>
-            </div>
-          </div>
+          <TerminalDemo />
         </div>
       </section>
 
@@ -172,9 +146,14 @@ export default function HomePage() {
             description="SFTP, scp, rsync, port forwarding, agent forwarding, VS Code Remote, JetBrains Gateway. All work out of the box."
           />
           <FeatureCard
+            icon={HardDrive}
+            title="Persistent workspaces"
+            description="Home directory survives container recreation. Write code, disconnect, come back tomorrow. Your files are where you left them."
+          />
+          <FeatureCard
             icon={Cloud}
             title="AI agent ready"
-            description="Disposable environments for Claude Code, Cursor, Codex. SSH in, run tests against real postgres, push, exit. Container self-destructs."
+            description="Disposable environments for Claude Code, Cursor, Codex. SSH in, run tests against real postgres, push, exit. Container cleans up after itself."
           />
           <FeatureCard
             icon={Lock}
@@ -229,7 +208,8 @@ podspawn spawn detects session type:
 Container created/reattached, I/O piped, exit code propagated
   |
   v
-User exits -> grace period -> container destroyed`}
+User exits -> grace period -> container destroyed (ephemeral)
+          or -> container stays alive (persistent)`}
             </pre>
           </div>
         </div>
@@ -263,7 +243,7 @@ User exits -> grace period -> container destroyed`}
               <ComparisonRow feature="All SSH features" podspawn="Yes" containerSSH="Partial" coder="Yes" codespaces="Yes" />
               <ComparisonRow feature="Declarative env spec" podspawn="Podfile" containerSSH="No" coder="Partial" codespaces="No" />
               <ComparisonRow feature="Companion services" podspawn="Yes" containerSSH="No" coder="Yes" codespaces="Yes" />
-              <ComparisonRow feature="True ephemeral" podspawn="Yes" containerSSH="Yes" coder="No" codespaces="No" />
+              <ComparisonRow feature="Ephemeral + persistent" podspawn="Both" containerSSH="Ephemeral" coder="Persistent" codespaces="Persistent" />
               <ComparisonRow feature="Zero client install" podspawn="Yes" containerSSH="Yes" coder="No" codespaces="No" />
               <ComparisonRow feature="Self-hosted" podspawn="Easy" containerSSH="Hard" coder="Hard" codespaces="No" />
               <ComparisonRow feature="Open source" podspawn="AGPL" containerSSH="Apache" coder="AGPL" codespaces="No" />

@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: How podspawn hooks into native sshd to provide ephemeral containers without reimplementing SSH
+description: How podspawn hooks into native sshd to provide dev container workspaces without reimplementing SSH
 ---
 
 Podspawn is not an SSH server. It is a single Go binary that sshd invokes on demand -- not a daemon, not a service, not a port listener. Every SSH feature works because OpenSSH handles the protocol. Podspawn handles containers.
@@ -95,8 +95,24 @@ Session router reads SSH_ORIGINAL_COMMAND, creates/reattaches container
 I/O piped, exit code propagated
     |
     v
-User exits --> grace period --> container destroyed
+User exits
+    |
+    +-- ephemeral (grace-period / destroy-on-disconnect)
+    |   --> grace period --> container destroyed
+    |
+    +-- persistent
+        --> container stays alive
 ```
+
+### Session modes
+
+Podspawn supports three session modes that control what happens when a user disconnects:
+
+- **grace-period** -- the container lingers for a configurable window (default 10 minutes), then gets destroyed. Reconnecting within the window reattaches to the same container.
+- **destroy-on-disconnect** -- the container is removed immediately when the SSH session ends.
+- **persistent** -- the container stays alive indefinitely until explicitly destroyed.
+
+The mode is resolved per-container with layered precedence: server default, then user override (`/etc/podspawn/users/<username>.yaml`), then project config. See [Session Lifecycle](/docs/concepts/session-lifecycle) for the full resolution logic and cleanup behavior.
 
 ## Why zero SSH protocol code
 

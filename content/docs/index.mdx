@@ -1,9 +1,9 @@
 ---
 title: Introduction
-description: Ephemeral dev containers that work locally and remotely
+description: Dev container workspaces that work locally and remotely
 ---
 
-Podspawn is a single binary for ephemeral dev containers. It works two ways: locally via Docker exec (no SSH, no root) and remotely via native sshd (zero client install). One tool, two modes, zero friction.
+Podspawn is a single binary for dev container workspaces. It works two ways: locally via Docker exec (no SSH, no root) and remotely via native sshd (zero client install). One tool, two modes, zero friction.
 
 ```bash
 # Local -- create a container and drop in
@@ -17,7 +17,7 @@ ssh alice@devbox.company.com
 
 **Local mode** talks to Docker directly. No SSH, no sshd, no root, no key management. If `docker ps` works, podspawn works. Named containers persist across shells, or use `podspawn run scratch` for one-shot throwaways.
 
-**Server mode** hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full ephemeral container platform. Users SSH in with any client and land in isolated containers. Every SSH feature works -- port forwarding, SCP, SFTP, VS Code Remote -- because OpenSSH handles the protocol.
+**Server mode** hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full container workspace platform. Users SSH in with any client and land in isolated containers. Every SSH feature works -- port forwarding, SCP, SFTP, VS Code Remote -- because OpenSSH handles the protocol.
 
 Same binary, same Podfile environments, same container lifecycle. The only difference is how you get in.
 
@@ -26,8 +26,9 @@ Same binary, same Podfile environments, same container lifecycle. The only diffe
 - **Podfile environments** -- declarative YAML for packages, companion services, dotfiles, and lifecycle hooks. Define your dev environment once, reproduce it anywhere.
 - **Named machines** -- `podspawn create backend`, `podspawn shell backend`. Containers have names, not hex IDs.
 - **Security by default** -- cap-drop ALL, no-new-privileges, PID limits, per-user network isolation, optional gVisor.
-- **AI agent ready** -- disposable environments for autonomous coding agents. Create, run tests, destroy. No cleanup.
+- **AI agent ready** -- disposable environments for agents, persistent workspaces for teams. Create, run tests, destroy. No cleanup.
 - **Cross-platform** -- macOS, Linux, Windows. Works with OrbStack, Docker Desktop, Colima, or bare Docker.
+- **Persistent or ephemeral** -- per-user, per-project, admin's choice.
 - **Single binary, open source** -- no daemon in local mode, no custom SSH server in server mode. AGPL-3.0.
 
 ## Why not...

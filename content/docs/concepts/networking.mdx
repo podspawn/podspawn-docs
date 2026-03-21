@@ -83,7 +83,7 @@ networkCfg = &network.NetworkingConfig{
 Service containers get aliases matching their service name. The dev container gets an alias matching `podspawn-<user>-<project>`.
 
 <Callout type="info">
-Companion services share the session lifecycle. When the session is destroyed (grace period expires, max lifetime hit, or destroy-on-disconnect), all service containers are stopped and the network is removed. See [Session Lifecycle](/docs/concepts/session-lifecycle) for the full cleanup flow.
+Companion services share the session lifecycle (unless persistent mode is enabled, where services stay alive with the container). When the session is destroyed (grace period expires, max lifetime hit, or destroy-on-disconnect), all service containers are stopped and the network is removed. See [Session Lifecycle](/docs/concepts/session-lifecycle) for the full cleanup flow.
 </Callout>
 
 ## Port forwarding through sshd

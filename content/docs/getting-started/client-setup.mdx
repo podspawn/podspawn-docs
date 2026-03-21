@@ -106,6 +106,8 @@ servers:
 
 Both formats can be mixed in the same config. The string format (`personal.pod: my-homelab.ddns.net`) is shorthand for `{host: my-homelab.ddns.net}`.
 
+The `mode` field is informational: `ephemeral` means the container is destroyed after disconnect, `persistent` means it stays alive and files survive. The server controls actual behavior.
+
 ### How routing works
 
 When you run `ssh alice@work.pod`:

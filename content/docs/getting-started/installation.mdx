@@ -146,6 +146,8 @@ sudo podspawn doctor
 
 Since `server-setup` has been run, doctor runs all 11 checks: Docker, sshd, keys, permissions, disk space, and image cache. Fix any failures before proceeding.
 
+By default, containers are ephemeral (destroyed after a grace period). Set `session.mode: persistent` in the server config or per-user overrides for workspaces where files survive across sessions. See [Session Lifecycle](/docs/concepts/session-lifecycle) for details.
+
 #### Step 5: Test
 
 ```bash

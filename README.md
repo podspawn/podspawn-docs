@@ -1,6 +1,6 @@
 # podspawn-docs
 
-Documentation site for [podspawn](https://github.com/podspawn/podspawn) -- ephemeral SSH dev containers via native sshd.
+Documentation site for [podspawn](https://github.com/podspawn/podspawn) -- SSH dev container workspaces via native sshd.
 
 Built with [Fumadocs](https://fumadocs.dev) + Next.js.
 
