@@ -89,6 +89,23 @@ servers:
     personal.pod: my-homelab.ddns.net
 ```
 
+Mappings can also use an object format to include the server's session mode. This is purely informational on the client side (the server controls the actual behavior), but it shows up in `podspawn servers` output so you know which servers persist your files:
+
+```yaml
+servers:
+  default: devbox.company.com
+  mappings:
+    work.pod:
+      host: devbox.company.com
+      mode: persistent
+    gpu.pod:
+      host: gpu-server.company.com
+      mode: ephemeral
+    personal.pod: my-homelab.ddns.net
+```
+
+Both formats can be mixed in the same config. The string format (`personal.pod: my-homelab.ddns.net`) is shorthand for `{host: my-homelab.ddns.net}`.
+
 ### How routing works
 
 When you run `ssh alice@work.pod`:
@@ -138,6 +155,17 @@ grep -A5 "Host \*.pod" ~/.ssh/config
 # Check client config
 cat ~/.podspawn/config.yaml
 
+# List servers with connectivity and mode
+podspawn servers
+```
+
+```
+  (default)            devbox.company.com                         ok (12ms)
+  gpu.pod              gpu-server.company.com   ephemeral     ok (45ms)
+  work.pod             devbox.company.com       persistent    ok (11ms)
+```
+
+```bash
 # Test the connection
 ssh alice@work.pod
 ```

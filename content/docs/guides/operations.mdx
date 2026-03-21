@@ -164,6 +164,10 @@ journalctl -u podspawn-cleanup.service --since "1 hour ago"
 
 Set up a systemd watchdog or external healthcheck to alert if the cleanup daemon goes down. The system works without it, but orphaned containers and expired grace periods will accumulate.
 
+<Callout type="info">
+The cleanup daemon skips persistent-mode containers. They remain running after the user disconnects, and their home directories stay on disk. To reclaim space from a departed user, run `podspawn remove-user <username> --purge`.
+</Callout>
+
 ### Audit logging
 
 Podspawn logs session events (create, connect, disconnect, destroy) to the audit log at `/var/log/podspawn/audit.jsonl`. Each line is a structured JSON entry with timestamp, user, project, container ID, and event type.
@@ -183,6 +187,18 @@ Docker images are the biggest disk consumer. Plan for:
 | State database | < 1 MB |
 
 A server supporting 20 concurrent users with 3 distinct project images needs roughly 10-15 GB for images alone. Run `docker system df` periodically.
+
+#### Persistent mode homes
+
+When running in persistent mode, each user gets a bind-mounted home directory at `<homes_dir>/<username>` (default: `/var/lib/podspawn/homes/<username>`). These directories grow over time and are not cleaned up when sessions end. Plan for additional disk proportional to the number of persistent users and their typical workspace size.
+
+```bash
+# Check total size of persistent home dirs
+du -sh /var/lib/podspawn/homes/*
+
+# Remove a specific user's home dir (or use podspawn remove-user --purge)
+rm -rf /var/lib/podspawn/homes/alice
+```
 
 ```bash
 # Check Docker disk usage

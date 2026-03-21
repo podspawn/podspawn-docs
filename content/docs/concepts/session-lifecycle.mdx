@@ -157,6 +157,9 @@ connections > 0?
                 +-- destroy-on-disconnect (or grace_period = 0)
                 |       --> remove container + services + network, delete session
                 |
+                +-- persistent
+                |       --> done, container stays running
+                |
                 +-- grace-period
                         --> set status = "grace_period", grace_expiry = now + duration
 ```
@@ -182,14 +185,50 @@ For CI pipelines and AI agents that need immediate cleanup, set `session.mode: "
 
 Alternatively, set `session.grace_period: "0s"` with any mode for the same effect.
 
+## Persistent mode
+
+Persistent mode keeps the container alive indefinitely after disconnect. There is no grace period countdown and no max lifetime enforcement. The container runs until it is explicitly stopped or the host restarts.
+
+Set `session.mode: "persistent"` in config:
+
+```yaml
+# /etc/podspawn/config.yaml
+session:
+  mode: "persistent"
+```
+
+### Home directory bind mount
+
+Persistent sessions bind-mount the user's home directory from the host at `/var/lib/podspawn/homes/<username>/`. This means files written to `$HOME` inside the container survive container recreation. If the container is stopped, upgraded to a new image, or destroyed by a host reboot, the home directory is still on disk and gets mounted back into the next session.
+
+```
+/var/lib/podspawn/homes/alice/   <-->   /home/alice (inside container)
+```
+
+The directory is created on first session if it does not exist, owned by the container user's UID.
+
+<Callout type="info">
+The bind mount only covers the home directory. System-level changes (installed packages, modified config files outside `$HOME`) are still lost when the container is recreated. Use a Podfile to declaratively install packages that should persist across container rebuilds.
+</Callout>
+
+### Cleanup daemon behavior
+
+The cleanup daemon skips persistent containers entirely. It does not check them for grace period expiry or max lifetime violations. Persistent sessions only appear in cleanup if the container is gone from Docker but the session record remains in the database, in which case normal reconciliation removes the stale record.
+
+### When to use persistent mode
+
+Persistent mode is designed for long-lived development environments where the cost of recreating state (shell history, caches, editor configs, compiled artifacts) outweighs the cost of leaving a container running. It trades automatic resource reclamation for developer convenience.
+
+If you want the container to stop after disconnect but keep the home directory for next time, persistent mode is still the right choice. Run `podspawn stop` manually when you are done. The bind-mounted home directory survives the stop.
+
 ## Max lifetimes
 
-Every session has a hard deadline: `max_lifetime` (default 8 hours). When `time.Now()` passes `MaxLifetime`, the session is eligible for destruction regardless of active connections or grace period status.
+Every session has a hard deadline: `max_lifetime` (default 8 hours). When `time.Now()` passes `MaxLifetime`, the session is eligible for destruction regardless of active connections or grace period status. Persistent sessions are exempt from max lifetime enforcement.
 
 The cleanup daemon enforces this via `ExpiredLifetimes()`:
 
 ```sql
-SELECT ... FROM sessions WHERE max_lifetime < ?
+SELECT ... FROM sessions WHERE max_lifetime < ? AND mode != 'persistent'
 ```
 
 This prevents zombie containers from users who leave SSH sessions open indefinitely.
@@ -214,19 +253,30 @@ When a session is destroyed (grace expiry, max lifetime, or destroy-on-disconnec
 
 If any step fails, the next `spawn` invocation's reconciliation catches the orphan. No manual intervention needed.
 
+## Mode resolution order
+
+When podspawn determines which session mode to use, it checks three levels of configuration in order, with later levels overriding earlier ones:
+
+1. **Server default** -- `session.mode` in `/etc/podspawn/config.yaml`
+2. **User override** -- `session.mode` in `/etc/podspawn/users/<username>.yaml`
+3. **Project config** -- `session.mode` in the project's Podfile
+
+This means a server admin can set `destroy-on-disconnect` as the default, while a specific user can override to `persistent` for their own sessions, and a specific project can override further if needed.
+
 ## Configuration reference
 
 ```yaml
 # /etc/podspawn/config.yaml
 session:
   grace_period: "60s"       # how long containers survive after last disconnect
-  max_lifetime: "8h"        # hard limit regardless of activity
-  mode: "grace-period"      # "grace-period" | "destroy-on-disconnect"
+  max_lifetime: "8h"        # hard limit regardless of activity (ignored for persistent)
+  mode: "grace-period"      # "grace-period" | "destroy-on-disconnect" | "persistent"
 ```
 
 ## Session modes summary
 
-| Mode | Grace period | Use case |
-|---|---|---|
-| `grace-period` (default) | Configurable, default 60s | Human developers -- survives network blips |
-| `destroy-on-disconnect` | Zero | CI, AI agents -- immediate cleanup, no billing surprises |
+| Mode | Grace period | Max lifetime | Home bind mount | Use case |
+|---|---|---|---|---|
+| `grace-period` (default) | Configurable, default 60s | Enforced, default 8h | No | Human developers -- survives network blips |
+| `destroy-on-disconnect` | Zero | Enforced, default 8h | No | CI, AI agents -- immediate cleanup, no billing surprises |
+| `persistent` | None, container stays alive | Exempt | Yes, from `/var/lib/podspawn/homes/<user>/` | Long-lived dev environments -- files survive container recreation |

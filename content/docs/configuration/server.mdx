@@ -20,11 +20,13 @@ defaults:
 session:
   grace_period: 60s
   max_lifetime: 8h
+  # valid modes: destroy-on-disconnect, grace-period, persistent
   mode: grace-period
 
 state:
   db_path: /var/lib/podspawn/state.db
   lock_dir: /var/lib/podspawn/locks
+  homes_dir: /var/lib/podspawn/homes
 
 log:
   file: ""
@@ -77,11 +79,21 @@ Controls container lifecycle after a user disconnects.
 |-------|------|---------|-------------|
 | `grace_period` | `string` | `60s` | How long to keep a container alive after the last SSH session disconnects. Must include a Go duration unit (e.g., `60s`, `5m`, `1h`). |
 | `max_lifetime` | `string` | `8h` | Maximum wall-clock lifetime for a container regardless of session activity. Same duration format as `grace_period`. |
-| `mode` | `string` | `grace-period` | Container teardown strategy. `grace-period` waits for the grace period after disconnect before removing the container. |
+| `mode` | `string` | `grace-period` | Container teardown strategy. Valid values: `destroy-on-disconnect` (remove immediately on last disconnect), `grace-period` (wait for the grace period after disconnect before removing), `persistent` (container survives indefinitely, home directory is preserved across sessions). |
 
 <Callout>
 Both `grace_period` and `max_lifetime` are validated at load time. If either value is not a valid Go duration string, the config fails to load.
 </Callout>
+
+### Mode resolution order
+
+The effective session mode for a given connection is resolved in this order, where the most specific match wins:
+
+1. **Project config** (`projects.yaml`) -- if the session targets a project that specifies a mode
+2. **User override** (`/etc/podspawn/users/<username>.yaml`) -- per-user mode setting
+3. **Server default** (`session.mode` in `/etc/podspawn/config.yaml`)
+
+If none of these specify a mode, the built-in default is `grace-period`.
 
 ## state
 
@@ -91,6 +103,7 @@ Paths for persistent state. These directories must be writable by the podspawn p
 |-------|------|---------|-------------|
 | `db_path` | `string` | `/var/lib/podspawn/state.db` | SQLite database tracking active sessions and containers. |
 | `lock_dir` | `string` | `/var/lib/podspawn/locks` | Directory for file-based locks that prevent concurrent mutations to the same user session. |
+| `homes_dir` | `string` | `/var/lib/podspawn/homes` | Directory for persistent home directories. When `session.mode` is `persistent`, each user's home directory is bind-mounted from `<homes_dir>/<username>` into the container, preserving files across sessions. |
 
 ## log
 

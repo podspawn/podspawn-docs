@@ -15,6 +15,7 @@ image: ubuntu:24.04
 cpus: 4.0
 memory: 8g
 shell: /bin/zsh
+mode: persistent
 env:
   EDITOR: nvim
   TERM: xterm-256color
@@ -31,6 +32,7 @@ dotfiles:
 | `cpus` | `float64` | `0` (uses server default) | CPU cores allocated to this user's container. Overrides `defaults.cpus`. |
 | `memory` | `string` | `""` (uses server default) | Memory limit. Accepts `g`/`m` suffixes. Overrides `defaults.memory`. |
 | `shell` | `string` | `""` (uses server default) | Login shell inside the container. Overrides `defaults.shell`. |
+| `mode` | `string` | `""` (uses server default) | Session mode for this user. Valid values: `destroy-on-disconnect`, `grace-period`, `persistent`. Overrides `session.mode` from the server config. |
 | `env` | `map[string]string` | `{}` | Extra environment variables injected into the container. These are merged with (not replacing) any environment variables from the Podfile. |
 | `dotfiles` | `object` | `null` | Dotfiles repository to clone into the container on creation. |
 
@@ -49,9 +51,11 @@ The install script runs as the non-root container user. Use `sudo` for operation
 
 When multiple configuration layers specify the same field, the most specific one wins:
 
-1. **Podfile** (project-level) -- highest priority
+1. **Project config** (`projects.yaml`) -- highest priority
 2. **User overrides** (this file)
 3. **Server defaults** (`/etc/podspawn/config.yaml`)
+
+This applies to all fields including `mode`. For example, if the server default mode is `grace-period` but a user override sets `mode: persistent`, that user's sessions will use persistent mode.
 
 For `env` variables specifically, all layers are merged. If the same key appears in multiple layers, the higher-priority layer wins.
 

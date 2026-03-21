@@ -281,6 +281,7 @@ podspawn remove-user <username> [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--force` | `false` | Destroy active sessions without confirmation |
+| `--purge` | `false` | Also delete the user's persistent home directory |
 
 ### Behavior
 
@@ -288,6 +289,8 @@ podspawn remove-user <username> [flags]
 2. If the user has active sessions and `--force` is not set, returns an error
 3. With `--force`, destroys all active sessions (containers, services, networks)
 4. Removes the key file
+5. With `--purge`, removes the user's persistent home directory at `<homes_dir>/<username>`
+6. Without `--purge`, prints a notice if a persistent home directory exists so you can decide whether to keep it
 
 ### Examples
 
@@ -297,10 +300,20 @@ podspawn remove-user alice
 
 # Force-remove user with active sessions
 podspawn remove-user alice --force
+
+# Remove user and delete their persistent home directory
+podspawn remove-user alice --force --purge
+```
+
+Without `--purge`, the home directory is left in place:
+
+```
+removed user alice
+NOTE: persistent home dir exists at /var/lib/podspawn/homes/alice; use --purge to delete it
 ```
 
 <Callout type="warn">
-With `--force`, all active sessions are immediately destroyed. Connected SSH sessions will be terminated and unsaved work lost.
+With `--force`, all active sessions are immediately destroyed. Connected SSH sessions will be terminated and unsaved work lost. With `--purge`, the user's persistent home directory is permanently deleted.
 </Callout>
 
 ---

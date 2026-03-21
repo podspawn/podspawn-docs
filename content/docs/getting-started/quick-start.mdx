@@ -64,6 +64,22 @@ Alice lands in a container as a non-root user (`alice@yourserver:~$`). SFTP, por
 
 For the full server walkthrough, see the [Tutorial](/docs/guides/tutorial#server-mode).
 
+### Persistent mode
+
+By default, containers are destroyed after a grace period when the user disconnects. To keep files across container restarts, set the session mode to `persistent` in the server config or a per-user override:
+
+```yaml
+# /etc/podspawn/config.yaml (server-wide)
+session:
+  mode: persistent
+
+# /etc/podspawn/users/alice.yaml (per-user override)
+session:
+  mode: persistent
+```
+
+In persistent mode, the user's `/home/<user>` directory is bind-mounted from the host. Files written there survive container restarts. The container itself is still recreated on each connection, but the home directory carries over.
+
 ---
 
 ## What happened under the hood
