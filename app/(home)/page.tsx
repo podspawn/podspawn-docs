@@ -13,6 +13,18 @@ import {
   HardDrive,
 } from 'lucide-react';
 import { TerminalDemo } from '@/components/terminal-demo';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: {
+    absolute: 'podspawn — Ephemeral SSH Dev Containers',
+  },
+  description:
+    'Persistent dev environments and ephemeral sandboxes over native SSH. Two lines of sshd_config. Sub-second startup. Zero client install. Open source.',
+  alternates: {
+    canonical: 'https://podspawn.dev',
+  },
+};
 
 function FeatureCard({
   icon: Icon,
@@ -61,6 +73,38 @@ function ComparisonRow({
 export default function HomePage() {
   return (
     <div className="flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@graph': [
+              {
+                '@type': 'WebSite',
+                name: 'podspawn',
+                url: 'https://podspawn.dev',
+                description:
+                  'Ephemeral SSH dev containers with native sshd integration.',
+              },
+              {
+                '@type': 'SoftwareApplication',
+                name: 'podspawn',
+                applicationCategory: 'DeveloperApplication',
+                operatingSystem: 'Linux',
+                url: 'https://podspawn.dev',
+                license: 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+                offers: {
+                  '@type': 'Offer',
+                  price: '0',
+                  priceCurrency: 'USD',
+                },
+                description:
+                  'Open source tool for ephemeral SSH dev containers. Native sshd integration, sub-second startup, Podfile environments.',
+              },
+            ],
+          }),
+        }}
+      />
       {/* Hero */}
       <section className="relative overflow-hidden border-b border-fd-border">
         <div className="absolute inset-0 bg-gradient-to-b from-fd-primary/5 to-transparent" />
