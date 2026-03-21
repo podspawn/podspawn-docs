@@ -177,6 +177,7 @@ export function TerminalDemo() {
   const [opacity, setOpacity] = useState(1);
   const [completedLines, setCompletedLines] = useState<number[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sceneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prefersReducedMotion = useRef(false);
 
   useEffect(() => {
@@ -192,14 +193,15 @@ export function TerminalDemo() {
 
   const switchToScene = useCallback((idx: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (sceneTimerRef.current) clearTimeout(sceneTimerRef.current);
     setPhase("fading");
     setOpacity(0);
-    timerRef.current = setTimeout(() => {
+    sceneTimerRef.current = setTimeout(() => {
       setSceneIndex(idx);
       setLineIndex(0);
       setCharIndex(0);
       setCompletedLines([]);
-      timerRef.current = setTimeout(() => {
+      sceneTimerRef.current = setTimeout(() => {
         setOpacity(1);
         setPhase("typing");
       }, 50);
