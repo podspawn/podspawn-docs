@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 type LineSegment = {
   text: string;
   color?: string;
+  prompt?: boolean; // true = appears instantly even on typed lines
 };
 
 type SceneLine = {
@@ -24,7 +25,7 @@ const scenes: Scene[] = [
     lines: [
       {
         segments: [
-          { text: "$ ", color: "text-green-400" },
+          { text: "$ ", color: "text-green-400", prompt: true },
           { text: "ssh alice@backend.pod", color: "text-fd-foreground" },
         ],
         typed: true,
@@ -50,10 +51,11 @@ const scenes: Scene[] = [
       },
       {
         segments: [
-          { text: "alice@backend", color: "text-blue-400" },
-          { text: ":", color: "text-fd-foreground" },
-          { text: "~/workspace", color: "text-fd-primary" },
-          { text: "$ cat TODO.md", color: "text-fd-foreground" },
+          { text: "alice@backend", color: "text-blue-400", prompt: true },
+          { text: ":", color: "text-fd-foreground", prompt: true },
+          { text: "~/workspace", color: "text-fd-primary", prompt: true },
+          { text: "$ ", color: "text-fd-foreground", prompt: true },
+          { text: "cat TODO.md", color: "text-fd-foreground" },
         ],
         typed: true,
         pause: 400,
@@ -78,10 +80,11 @@ const scenes: Scene[] = [
       },
       {
         segments: [
-          { text: "alice@backend", color: "text-blue-400" },
-          { text: ":", color: "text-fd-foreground" },
-          { text: "~/workspace", color: "text-fd-primary" },
-          { text: "$ npm test", color: "text-fd-foreground" },
+          { text: "alice@backend", color: "text-blue-400", prompt: true },
+          { text: ":", color: "text-fd-foreground", prompt: true },
+          { text: "~/workspace", color: "text-fd-primary", prompt: true },
+          { text: "$ ", color: "text-fd-foreground", prompt: true },
+          { text: "npm test", color: "text-fd-foreground" },
         ],
         typed: true,
         pause: 1200,
@@ -94,10 +97,11 @@ const scenes: Scene[] = [
       },
       {
         segments: [
-          { text: "alice@backend", color: "text-blue-400" },
-          { text: ":", color: "text-fd-foreground" },
-          { text: "~/workspace", color: "text-fd-primary" },
-          { text: "$ exit", color: "text-fd-foreground" },
+          { text: "alice@backend", color: "text-blue-400", prompt: true },
+          { text: ":", color: "text-fd-foreground", prompt: true },
+          { text: "~/workspace", color: "text-fd-primary", prompt: true },
+          { text: "$ ", color: "text-fd-foreground", prompt: true },
+          { text: "exit", color: "text-fd-foreground" },
         ],
         typed: true,
         pause: 400,
@@ -118,7 +122,7 @@ const scenes: Scene[] = [
     lines: [
       {
         segments: [
-          { text: "$ ", color: "text-green-400" },
+          { text: "$ ", color: "text-green-400", prompt: true },
           { text: "ssh agent@ci.pod", color: "text-fd-foreground" },
         ],
         typed: true,
@@ -135,10 +139,11 @@ const scenes: Scene[] = [
       },
       {
         segments: [
-          { text: "agent@ci", color: "text-blue-400" },
-          { text: ":", color: "text-fd-foreground" },
-          { text: "~", color: "text-fd-primary" },
-          { text: "$ pytest && exit", color: "text-fd-foreground" },
+          { text: "agent@ci", color: "text-blue-400", prompt: true },
+          { text: ":", color: "text-fd-foreground", prompt: true },
+          { text: "~", color: "text-fd-primary", prompt: true },
+          { text: "$ ", color: "text-fd-foreground", prompt: true },
+          { text: "pytest && exit", color: "text-fd-foreground" },
         ],
         typed: true,
         pause: 1400,
@@ -163,8 +168,8 @@ const scenes: Scene[] = [
   },
 ];
 
-function flattenSegments(segments: LineSegment[]): string {
-  return segments.map((s) => s.text).join("");
+function typableLength(segments: LineSegment[]): number {
+  return segments.filter((s) => !s.prompt).reduce((n, s) => n + s.text.length, 0);
 }
 
 export function TerminalDemo() {
@@ -188,7 +193,7 @@ export function TerminalDemo() {
 
   const scene = scenes[sceneIndex];
   const currentLine = scene.lines[lineIndex];
-  const fullText = currentLine ? flattenSegments(currentLine.segments) : "";
+  const typableLen = currentLine ? typableLength(currentLine.segments) : 0;
   const isTypedLine = currentLine?.typed ?? false;
 
   const switchToScene = useCallback((idx: number) => {
@@ -248,7 +253,7 @@ export function TerminalDemo() {
       return;
     }
 
-    if (charIndex >= fullText.length) {
+    if (charIndex >= typableLen) {
       // Finished typing this line
       setPhase("pausing");
       return;
@@ -264,7 +269,7 @@ export function TerminalDemo() {
   }, [
     phase,
     charIndex,
-    fullText.length,
+    typableLen,
     isTypedLine,
     currentLine,
     advanceLine,
@@ -282,20 +287,27 @@ export function TerminalDemo() {
     if (!visible) return null;
 
     const showCursor = isActive && phase === "typing" && line.typed;
-    let charsRemaining = isCompleted
-      ? Infinity
-      : activeCharCount;
+    let typedCharsRemaining = isCompleted ? Infinity : activeCharCount;
 
     return (
       <div key={idx} className={idx > 0 ? "mt-1" : ""}>
         {line.segments.map((seg, si) => {
-          if (charsRemaining <= 0 && !isCompleted)
-            return null;
-          const visibleChars = Math.min(seg.text.length, charsRemaining);
+          // Prompt segments always appear instantly
+          if (seg.prompt) {
+            return (
+              <span key={si} className={seg.color || "text-fd-foreground"}>
+                {seg.text}
+              </span>
+            );
+          }
+
+          // Non-prompt segments on typed lines get typed char-by-char
+          if (typedCharsRemaining <= 0 && !isCompleted) return null;
+          const visibleChars = Math.min(seg.text.length, typedCharsRemaining);
           const displayText = isCompleted
             ? seg.text
             : seg.text.slice(0, visibleChars);
-          charsRemaining -= seg.text.length;
+          typedCharsRemaining -= seg.text.length;
 
           return (
             <span key={si} className={seg.color || "text-fd-foreground"}>
