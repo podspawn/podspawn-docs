@@ -190,30 +190,35 @@ export function TerminalDemo() {
   const fullText = currentLine ? flattenSegments(currentLine.segments) : "";
   const isTypedLine = currentLine?.typed ?? false;
 
+  const switchToScene = useCallback((idx: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setPhase("fading");
+    setOpacity(0);
+    timerRef.current = setTimeout(() => {
+      setSceneIndex(idx);
+      setLineIndex(0);
+      setCharIndex(0);
+      setCompletedLines([]);
+      timerRef.current = setTimeout(() => {
+        setOpacity(1);
+        setPhase("typing");
+      }, 50);
+    }, 400);
+  }, []);
+
   const advanceLine = useCallback(() => {
     setCompletedLines((prev) => [...prev, lineIndex]);
     const nextLine = lineIndex + 1;
 
     if (nextLine >= scene.lines.length) {
-      // Scene complete, fade to next
-      setPhase("fading");
-      setOpacity(0);
-      timerRef.current = setTimeout(() => {
-        const nextScene = (sceneIndex + 1) % scenes.length;
-        setSceneIndex(nextScene);
-        setLineIndex(0);
-        setCharIndex(0);
-        setCompletedLines([]);
-        setPhase("typing");
-        timerRef.current = setTimeout(() => setOpacity(1), 50);
-      }, 600);
+      switchToScene((sceneIndex + 1) % scenes.length);
       return;
     }
 
     setLineIndex(nextLine);
     setCharIndex(0);
     setPhase("typing");
-  }, [lineIndex, scene.lines.length, sceneIndex]);
+  }, [lineIndex, scene.lines.length, sceneIndex, switchToScene]);
 
   useEffect(() => {
     if (prefersReducedMotion.current) {
@@ -316,16 +321,20 @@ export function TerminalDemo() {
         </div>
         <div className="flex gap-1.5">
           {scenes.map((s, i) => (
-            <span
+            <button
               key={s.label}
-              className={`text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors duration-300 ${
+              type="button"
+              onClick={() => {
+                if (i !== sceneIndex) switchToScene(i);
+              }}
+              className={`text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors duration-300 cursor-pointer ${
                 i === sceneIndex
                   ? "bg-fd-primary/15 text-fd-primary"
-                  : "text-fd-muted-foreground/40"
+                  : "text-fd-muted-foreground/40 hover:text-fd-muted-foreground"
               }`}
             >
               {s.label}
-            </span>
+            </button>
           ))}
         </div>
       </div>
