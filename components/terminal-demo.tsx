@@ -176,8 +176,8 @@ export function TerminalDemo() {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [lineIndex, setLineIndex] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
-  const [phase, setPhase] = useState<"typing" | "pausing" | "fading">(
-    "typing"
+  const [phase, setPhase] = useState<"typing" | "pausing" | "fading" | "prompt-pause">(
+    "prompt-pause"
   );
   const [opacity, setOpacity] = useState(1);
   const [completedLines, setCompletedLines] = useState<number[]>([]);
@@ -208,7 +208,7 @@ export function TerminalDemo() {
       setCompletedLines([]);
       sceneTimerRef.current = setTimeout(() => {
         setOpacity(1);
-        setPhase("typing");
+        setPhase("prompt-pause");
       }, 50);
     }, 400);
   }, []);
@@ -224,7 +224,7 @@ export function TerminalDemo() {
 
     setLineIndex(nextLine);
     setCharIndex(0);
-    setPhase("typing");
+    setPhase("prompt-pause");
   }, [lineIndex, scene.lines.length, sceneIndex, switchToScene]);
 
   useEffect(() => {
@@ -239,6 +239,17 @@ export function TerminalDemo() {
 
     if (phase === "pausing") {
       timerRef.current = setTimeout(advanceLine, currentLine?.pause ?? 400);
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
+    }
+
+    if (phase === "prompt-pause") {
+      if (!currentLine || !isTypedLine) {
+        setPhase("typing");
+        return;
+      }
+      timerRef.current = setTimeout(() => setPhase("typing"), 1000);
       return () => {
         if (timerRef.current) clearTimeout(timerRef.current);
       };
@@ -286,7 +297,7 @@ export function TerminalDemo() {
     const visible = isCompleted || isActive;
     if (!visible) return null;
 
-    const showCursor = isActive && phase === "typing" && line.typed;
+    const showCursor = isActive && (phase === "typing" || phase === "prompt-pause") && line.typed;
     let typedCharsRemaining = isCompleted ? Infinity : activeCharCount;
 
     return (
