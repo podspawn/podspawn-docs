@@ -39,10 +39,14 @@ When a child Podfile extends a base, fields are merged according to their type:
 | Field type | Merge behavior |
 |-----------|---------------|
 | Scalars (`base`, `shell`, `mount`, `mode`) | Child wins if non-empty |
-| Lists (`packages`, `repos`, `services`, `extra_commands`) | Child appends to base, duplicates removed |
-| Maps (`env`) | Merge, child wins on key conflict |
-| Hooks (`on_create`, `on_start`) | Concatenate: base runs first, then child |
-| Structs (`dotfiles`, `resources`) | Child overrides per-field (`resources.memory` can change without affecting `resources.cpus`) |
+| `packages`, `extra_commands` | Child appends to base, duplicates removed. `"!item"` removes from base. |
+| `services` | Same-name: child replaces the service. Different name: appended. `"!name"` removes. |
+| `repos` | Same-URL: child overrides branch/path. Different URL: appended. `"!url"` removes. |
+| `env` | Merge maps, child wins on key conflict. Empty value `""` removes the key. |
+| `on_create`, `on_start` | Concatenate: base runs first, then child |
+| `dotfiles` | Child replaces entirely if set (not per-field) |
+| `resources` | Per-field: `cpus` and `memory` override independently |
+| `ports.expose` | Append and deduplicate (no bang-replace support) |
 
 ### Example
 

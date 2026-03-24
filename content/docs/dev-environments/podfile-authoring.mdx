@@ -58,7 +58,7 @@ on_start: |
 
 **Keep it minimal.** Only include what's needed to build and test. Personal preferences (editor configs, shell themes) belong in dotfiles, not the Podfile.
 
-**Use `on_create` for heavy setup.** Dependency installation, code generation, database migrations -- anything slow goes in `on_create` because it only runs once per image.
+**Use `on_create` for heavy setup.** Dependency installation, code generation, database migrations -- anything slow goes in `on_create` because it only runs once when the container is first created.
 
 **Use `on_start` for lightweight tasks.** Welcome messages, environment checks, starting background processes.
 

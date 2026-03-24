@@ -108,9 +108,11 @@ workspace: /workspace/myapp
 
 ## Bang-replace fields
 
-Any mergeable field can use the `!` suffix to fully replace instead of merge:
+These fields support the `!` suffix to fully replace instead of merge:
 
 `packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, `on_start!`
+
+Note: `ports.expose` does not support bang-replace. Ports are always merged.
 
 ## Variable expansion
 
@@ -139,6 +141,7 @@ Environment variables support these built-in variables:
 - `mode` must be `grace-period`, `destroy-on-disconnect`, or `persistent`
 - `ports.strategy` must be `auto`, `manual`, or `expose`
 - `workspace` must be an absolute path
-- Repo paths must be absolute
+- Repo `url` is required; repo paths must be absolute
+- Service `name` and `image` are required
 - Service names must be unique
 - `"!item"` removal syntax only valid when `extends` is set

@@ -17,7 +17,7 @@ That's it. Podspawn reads the Podfile, builds a cached image, starts companion s
 
 ## What happens under the hood
 
-1. **Find Podfile** -- podspawn looks for `.podspawn/podfile.yaml`, then `podfile.yaml` in the current directory
+1. **Find Podfile** -- podspawn looks for `.podspawn/podfile.yaml`, then `podfile.yaml`, then falls back to `.devcontainer/devcontainer.json` if no Podfile exists
 2. **Resolve extends** -- if the Podfile uses `extends:`, the base is loaded and merged
 3. **Build image** -- a Docker image is built from the merged Podfile (cached by content hash, so rebuilds only happen when the Podfile changes)
 4. **Start services** -- companion containers (databases, caches) are created on a shared network
@@ -44,8 +44,8 @@ If you exit the shell, the container stays alive for a grace period. Running `po
 ## Stopping
 
 ```bash
-podspawn down          # stop container and services, keep volumes
-podspawn down --clean  # also remove named volumes
+podspawn down          # stop container and services
+podspawn down --name myapp-a3f8  # target a specific session
 ```
 
 ## Flags

@@ -42,7 +42,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 ```
 
-Volume data survives `podspawn down` but is removed with `podspawn down --clean`.
+Volume data survives `podspawn down`. To remove volumes, use `docker volume rm` directly.
 
 ## Port forwarding
 
