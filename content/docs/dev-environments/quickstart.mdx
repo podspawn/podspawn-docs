@@ -41,11 +41,25 @@ The command runs inside the Podfile environment and exits.
 
 If you exit the shell, the container stays alive for a grace period. Running `podspawn dev` again re-attaches instantly without rebuilding.
 
+<Callout type="info">
+The grace period is configured by the server (default 30 seconds). Use `--ephemeral` to destroy the container immediately on exit instead.
+</Callout>
+
 ## Stopping
 
 ```bash
-podspawn down          # stop container and services
-podspawn down --name myapp-a3f8  # target a specific session
+podspawn down                      # stop container and services
+podspawn down --clean              # also remove named volumes (postgres data, etc.)
+podspawn down --name myapp-a3f8    # target a specific session
+```
+
+## Pre-building
+
+For faster startup, pre-build the image so `podspawn dev` skips the build step:
+
+```bash
+podspawn prebuild                  # build image from CWD podfile
+podspawn prebuild --tag myimg:v1   # custom tag for CI
 ```
 
 ## Flags
@@ -72,3 +86,10 @@ podspawn init
 ```
 
 See [podspawn init](/docs/dev-environments/init) for details.
+
+<Cards>
+  <Card title="Writing a Podfile" href="/docs/dev-environments/podfile-authoring" />
+  <Card title="Extending Podfiles" href="/docs/dev-environments/extending" />
+  <Card title="Services & Ports" href="/docs/dev-environments/services-ports" />
+  <Card title="Full Reference" href="/docs/dev-environments/reference" />
+</Cards>

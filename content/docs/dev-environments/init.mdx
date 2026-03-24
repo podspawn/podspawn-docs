@@ -57,9 +57,15 @@ podspawn init --template python
 
 Available templates: `go`, `node`, `python`, `rust`, `fullstack`, `minimal`.
 
-## Community templates
+## Fetching latest templates
 
-Templates ship embedded in the podspawn binary. The full set (with additional templates and bases) is also available in the [community registry](https://github.com/podspawn/podfiles).
+Templates ship embedded in the podspawn binary, but you can fetch the latest from the [community registry](https://github.com/podspawn/podfiles):
+
+```bash
+podspawn init --update
+```
+
+This downloads the latest `registry.yaml` and all templates, caching them at `~/.podspawn/cache/podfiles/`. Cached templates take precedence over the embedded ones.
 
 ## What gets generated
 

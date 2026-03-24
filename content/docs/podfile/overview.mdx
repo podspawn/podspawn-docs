@@ -157,6 +157,11 @@ Every field in the Podfile schema, with types, defaults, and validation rules.
 | `on_create` | `string` | no | `""` | Shell script run once at container creation. Executed with `sh -c`. |
 | `on_start` | `string` | no | `""` | Shell script run every time the container starts. Executed with `sh -c`. |
 | `extra_commands` | `string[]` | no | `[]` | Additional shell commands added as `RUN` instructions in the generated Dockerfile, after package installation. |
+| `extends` | `string` | no | -- | Inherit from a base Podfile. Accepts local path, registry name, or GitHub URL. See [Extending Podfiles](/docs/dev-environments/extending). |
+| `name` | `string` | no | dir basename | Override the session name used by `podspawn dev`. |
+| `mount` | `string` | no | `bind` | How host directory is available in container: `bind` (live sync), `copy` (one-time copy), `none`. |
+| `mode` | `string` | no | `grace-period` | Session lifecycle: `grace-period`, `destroy-on-disconnect`, `persistent`. |
+| `workspace` | `string` | no | `/workspace/<dir>` | Mount target path inside the container. Must be absolute. |
 
 ### dotfiles
 
@@ -192,6 +197,7 @@ See [Services](/docs/podfile/services) for more on how service containers are st
 | Field | Type | Description |
 |-------|------|-------------|
 | `expose` | `int[]` | Ports to expose from the dev container. Translated to `EXPOSE` instructions in the generated Dockerfile. |
+| `strategy` | `string` | Port forwarding strategy for `podspawn dev`: `auto` (default, resolves conflicts), `manual` (only flag-specified), `expose` (fail on conflict). |
 
 ### resources
 

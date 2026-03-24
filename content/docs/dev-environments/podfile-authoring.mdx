@@ -68,6 +68,9 @@ on_start: |
 
 ## What not to include
 
-- **Secrets.** Never put API keys or credentials in a Podfile. Use environment variables injected at runtime.
+<Callout type="warn">
+Never put API keys, passwords, or credentials in a Podfile. It gets committed to git. Use environment variables injected at runtime instead.
+</Callout>
+
 - **Large datasets.** Mount them as volumes or download in `on_create`.
 - **IDE-specific config.** VS Code extensions, vim plugins, etc. belong in personal dotfiles.
