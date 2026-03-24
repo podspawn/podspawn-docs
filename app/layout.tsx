@@ -12,26 +12,26 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://podspawn.dev'),
   title: {
-    default: 'podspawn — Ephemeral SSH Dev Containers',
+    default: 'podspawn — One command. Full dev environment.',
     template: '%s | podspawn',
   },
   description:
-    'Persistent dev environments and ephemeral sandboxes over native SSH. Two lines of sshd_config. Sub-second startup. Every SSH feature works.',
+    'Clone a repo, run podspawn dev, get packages, services, and a shell. Locally or over SSH. Open source.',
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://podspawn.dev',
     siteName: 'podspawn',
-    title: 'podspawn — Ephemeral SSH Dev Containers',
+    title: 'podspawn — One command. Full dev environment.',
     description:
-      'Persistent dev environments and ephemeral sandboxes over native SSH. Two lines of sshd_config. Sub-second startup.',
+      'Clone a repo, run podspawn dev, get packages, services, and a shell. Locally or over SSH. Open source.',
     images: [{ url: '/og.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'podspawn — Ephemeral SSH Dev Containers',
+    title: 'podspawn — One command. Full dev environment.',
     description:
-      'Persistent dev environments and ephemeral sandboxes over native SSH. Two lines of sshd_config. Sub-second startup.',
+      'Clone a repo, run podspawn dev, get packages, services, and a shell. Locally or over SSH.',
   },
   robots: {
     index: true,

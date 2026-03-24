@@ -21,6 +21,92 @@ type Scene = {
 
 const scenes: Scene[] = [
   {
+    label: "podspawn dev",
+    lines: [
+      {
+        segments: [
+          { text: "$ ", color: "text-green-400", prompt: true },
+          { text: "podspawn dev", color: "text-fd-foreground" },
+        ],
+        typed: true,
+        pause: 800,
+      },
+      {
+        segments: [
+          { text: "Detected podfile.yaml", color: "text-fd-muted-foreground opacity-60" },
+        ],
+        pause: 400,
+      },
+      {
+        segments: [
+          { text: "Building image... done (cached)", color: "text-fd-muted-foreground opacity-60" },
+        ],
+        pause: 600,
+      },
+      {
+        segments: [
+          { text: "Starting services: postgres, redis... done", color: "text-fd-muted-foreground opacity-60" },
+        ],
+        pause: 500,
+      },
+      {
+        segments: [{ text: "", color: "text-fd-foreground" }],
+        pause: 100,
+      },
+      {
+        segments: [
+          { text: "  myapp-a3f8 | ubuntu:24.04", color: "text-fd-foreground" },
+        ],
+        pause: 120,
+      },
+      {
+        segments: [
+          { text: "  packages: go@1.25, golangci-lint, delve", color: "text-fd-foreground" },
+        ],
+        pause: 120,
+      },
+      {
+        segments: [
+          { text: "  services: postgres (:5432), redis (:6379)", color: "text-fd-foreground" },
+        ],
+        pause: 120,
+      },
+      {
+        segments: [
+          { text: "  ports:    localhost:8080 -> :8080", color: "text-fd-foreground" },
+        ],
+        pause: 120,
+      },
+      {
+        segments: [
+          { text: "  mount:    ~/code/myapp -> /workspace/myapp", color: "text-fd-foreground" },
+        ],
+        pause: 400,
+      },
+      {
+        segments: [{ text: "", color: "text-fd-foreground" }],
+        pause: 200,
+      },
+      {
+        segments: [
+          { text: "alice@myapp", color: "text-blue-400", prompt: true },
+          { text: ":", color: "text-fd-foreground", prompt: true },
+          { text: "/workspace/myapp", color: "text-fd-primary", prompt: true },
+          { text: "$ ", color: "text-fd-foreground", prompt: true },
+          { text: "make test", color: "text-fd-foreground" },
+        ],
+        typed: true,
+        pause: 1200,
+      },
+      {
+        segments: [
+          { text: "PASS  all tests passed", color: "text-green-400" },
+        ],
+        pause: 2500,
+      },
+    ],
+  },
+  {
     label: "persistent workspace",
     lines: [
       {

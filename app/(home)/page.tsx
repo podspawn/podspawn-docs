@@ -1,74 +1,32 @@
-import Link from 'next/link';
+import Link from "next/link";
 import {
-  Terminal,
-  Shield,
-  Zap,
-  Box,
-  GitBranch,
-  Users,
   ArrowRight,
+  GitBranch,
+  Shield,
+  Network,
+  Layers,
   Monitor,
-  Cloud,
-  Lock,
-  HardDrive,
-} from 'lucide-react';
-import { TerminalDemo } from '@/components/terminal-demo';
-import type { Metadata } from 'next';
+} from "lucide-react";
+import { TerminalDemo } from "@/components/terminal-demo";
+import { HeroGradient } from "@/components/hero-gradient";
+import { Reveal, StaggerContainer, StaggerItem } from "@/components/reveal";
+import { PodfileShowcase } from "@/components/podfile-showcase";
+import { ModeCards } from "@/components/mode-cards";
+import { FeatureRow } from "@/components/feature-row";
+import { ComparisonTable } from "@/components/comparison-table";
+import { InstallBlock } from "@/components/install-block";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: {
-    absolute: 'podspawn — Ephemeral SSH Dev Containers',
+    absolute: "podspawn -- One command. Full dev environment.",
   },
   description:
-    'Persistent dev environments and ephemeral sandboxes over native SSH. Two lines of sshd_config. Sub-second startup. Zero client install. Open source.',
+    "Clone a repo, run podspawn dev, get packages, services, and a shell. Locally or over SSH. Open source.",
   alternates: {
-    canonical: 'https://podspawn.dev',
+    canonical: "https://podspawn.dev",
   },
 };
-
-function FeatureCard({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="group relative rounded-xl border border-fd-border bg-fd-card p-6 transition-colors hover:border-fd-primary/50">
-      <div className="mb-3 inline-flex rounded-lg bg-fd-primary/10 p-2.5">
-        <Icon className="size-5 text-fd-primary" />
-      </div>
-      <h3 className="mb-2 text-lg font-semibold text-fd-foreground">{title}</h3>
-      <p className="text-sm text-fd-muted-foreground leading-relaxed">{description}</p>
-    </div>
-  );
-}
-
-function ComparisonRow({
-  feature,
-  podspawn,
-  containerSSH,
-  coder,
-  codespaces,
-}: {
-  feature: string;
-  podspawn: string;
-  containerSSH: string;
-  coder: string;
-  codespaces: string;
-}) {
-  return (
-    <tr className="border-b border-fd-border">
-      <td className="py-3 pr-4 text-sm font-medium text-fd-foreground">{feature}</td>
-      <td className="py-3 px-4 text-sm text-center text-fd-primary font-medium">{podspawn}</td>
-      <td className="py-3 px-4 text-sm text-center text-fd-muted-foreground">{containerSSH}</td>
-      <td className="py-3 px-4 text-sm text-center text-fd-muted-foreground">{coder}</td>
-      <td className="py-3 px-4 text-sm text-center text-fd-muted-foreground">{codespaces}</td>
-    </tr>
-  );
-}
 
 export default function HomePage() {
   return (
@@ -77,56 +35,65 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@graph': [
+            "@context": "https://schema.org",
+            "@graph": [
               {
-                '@type': 'WebSite',
-                name: 'podspawn',
-                url: 'https://podspawn.dev',
+                "@type": "WebSite",
+                name: "podspawn",
+                url: "https://podspawn.dev",
                 description:
-                  'Ephemeral SSH dev containers with native sshd integration.',
+                  "One-command dev environments. Clone a repo, run podspawn dev, get everything.",
               },
               {
-                '@type': 'SoftwareApplication',
-                name: 'podspawn',
-                applicationCategory: 'DeveloperApplication',
-                operatingSystem: 'Linux',
-                url: 'https://podspawn.dev',
-                license: 'https://www.gnu.org/licenses/agpl-3.0.en.html',
+                "@type": "SoftwareApplication",
+                name: "podspawn",
+                applicationCategory: "DeveloperApplication",
+                operatingSystem: "Linux, macOS, Windows",
+                url: "https://podspawn.dev",
+                license:
+                  "https://www.gnu.org/licenses/agpl-3.0.en.html",
                 offers: {
-                  '@type': 'Offer',
-                  price: '0',
-                  priceCurrency: 'USD',
+                  "@type": "Offer",
+                  price: "0",
+                  priceCurrency: "USD",
                 },
-                description:
-                  'Open source tool for ephemeral SSH dev containers. Native sshd integration, sub-second startup, Podfile environments.',
               },
             ],
           }),
         }}
       />
-      {/* Hero */}
-      <section className="relative overflow-hidden border-b border-fd-border">
-        <div className="absolute inset-0 bg-gradient-to-b from-fd-primary/5 to-transparent" />
+
+      {/* ─── Hero ─── */}
+      <section className="relative">
+        <HeroGradient />
         <div className="relative mx-auto max-w-6xl px-6 py-24 sm:py-32 lg:py-40">
-          <div className="max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-fd-border bg-fd-card px-4 py-1.5 text-sm text-fd-muted-foreground">
+          <Reveal>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-fd-border bg-fd-card/80 backdrop-blur px-4 py-1.5 text-sm text-fd-muted-foreground">
               <span className="inline-block size-2 rounded-full bg-green-500 animate-pulse" />
               Open source, AGPL-3.0 licensed
             </div>
-            <h1 className="mb-6 text-4xl font-bold tracking-tight text-fd-foreground sm:text-5xl lg:text-6xl">
-              Your workspace,
+          </Reveal>
+
+          <Reveal delay={0.1}>
+            <h1 className="mb-6 text-5xl font-bold tracking-tight text-fd-foreground sm:text-6xl lg:text-7xl">
+              One command.
               <br />
-              <span className="text-fd-primary">one SSH away.</span>
+              <span className="text-fd-primary">Full dev environment.</span>
             </h1>
+          </Reveal>
+
+          <Reveal delay={0.2}>
             <p className="mb-8 max-w-2xl text-lg text-fd-muted-foreground leading-relaxed">
-              Persistent dev environments that survive disconnects. Ephemeral
-              sandboxes for agents and CI. All over native SSH. Two lines
-              of sshd_config. Every SSH feature works.
+              Clone a repo with a <code className="text-fd-foreground font-mono text-base">podfile.yaml</code>,
+              run <code className="text-fd-foreground font-mono text-base">podspawn dev</code>,
+              get packages, services, and a shell. Locally or over SSH.
             </p>
+          </Reveal>
+
+          <Reveal delay={0.3}>
             <div className="flex flex-wrap gap-4">
               <Link
-                href="/docs"
+                href="/docs/dev-environments/quickstart"
                 className="inline-flex items-center gap-2 rounded-lg bg-fd-primary px-6 py-3 text-sm font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
               >
                 Get Started
@@ -134,193 +101,209 @@ export default function HomePage() {
               </Link>
               <Link
                 href="https://github.com/podspawn/podspawn"
-                className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-6 py-3 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+                className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card/80 backdrop-blur px-6 py-3 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
               >
                 <GitBranch className="size-4" />
-                View on GitHub
+                GitHub
               </Link>
             </div>
-          </div>
+          </Reveal>
 
-          {/* Terminal preview */}
-          <TerminalDemo />
+          <Reveal delay={0.4}>
+            <TerminalDemo />
+          </Reveal>
+
+          <Reveal delay={0.5}>
+            <div className="mt-8 flex items-center gap-3 rounded-lg border border-fd-border bg-fd-card/60 backdrop-blur px-4 py-2.5 max-w-fit font-mono text-sm">
+              <span className="text-green-400">$</span>
+              <span className="text-fd-foreground">curl -sSfL https://podspawn.dev/up | bash</span>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-fd-foreground">
-            Why podspawn?
-          </h2>
-          <p className="mx-auto max-w-2xl text-fd-muted-foreground">
-            Every competitor builds or embeds a custom SSH server. Podspawn
-            doesn&apos;t. It hooks into native sshd and lets OpenSSH handle the protocol.
-          </p>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <FeatureCard
-            icon={Terminal}
-            title="Native sshd"
-            description="Two lines of sshd_config. No custom daemon, no replacement SSH server. Your existing sshd does the heavy lifting."
-          />
-          <FeatureCard
-            icon={Zap}
-            title="Sub-second startup"
-            description="Cached images start in under 500ms. Pre-built Podfile images mean developers never wait for npm install."
-          />
-          <FeatureCard
-            icon={Shield}
-            title="Hardened by default"
-            description="cap-drop ALL, no-new-privileges, PID limits, per-user network isolation. gVisor runtime support for untrusted workloads."
-          />
-          <FeatureCard
-            icon={Box}
-            title="Podfile environments"
-            description="Declarative YAML spec for dev environments: packages, services, dotfiles, hooks. Commit it, everyone gets the same setup."
-          />
-          <FeatureCard
-            icon={Users}
-            title="Multi-tenant"
-            description="Per-user bridge networks, reference-counted connections, grace period lifecycle. Multiple users on shared infrastructure."
-          />
-          <FeatureCard
-            icon={Monitor}
-            title="Every SSH feature"
-            description="SFTP, scp, rsync, port forwarding, agent forwarding, VS Code Remote, JetBrains Gateway. All work out of the box."
-          />
-          <FeatureCard
-            icon={HardDrive}
-            title="Persistent workspaces"
-            description="Home directory survives container recreation. Write code, disconnect, come back tomorrow. Your files are where you left them."
-          />
-          <FeatureCard
-            icon={Cloud}
-            title="AI agent ready"
-            description="Disposable environments for Claude Code, Cursor, Codex. SSH in, run tests against real postgres, push, exit. Container cleans up after itself."
-          />
-          <FeatureCard
-            icon={Lock}
-            title="Audit everything"
-            description="Structured JSON-lines audit log for every connect, disconnect, command, and container lifecycle event."
-          />
-          <FeatureCard
-            icon={GitBranch}
-            title="devcontainer.json"
-            description="Already have a .devcontainer? Podspawn reads it as a fallback. Podfiles are a superset with companion services and dotfiles."
-          />
-        </div>
-      </section>
-
-      {/* Architecture diagram */}
-      <section className="border-y border-fd-border bg-fd-card/50">
-        <div className="mx-auto max-w-6xl px-6 py-24">
-          <div className="mb-16 text-center">
-            <h2 className="mb-4 text-3xl font-bold text-fd-foreground">
-              How it works
+      {/* ─── Podfile Showcase ─── */}
+      <section className="mx-auto max-w-6xl px-6 py-24 lg:py-32">
+        <Reveal>
+          <div className="mb-12 text-center">
+            <h2 className="mb-4 text-3xl font-bold text-fd-foreground lg:text-4xl">
+              Define once, reproduce anywhere.
             </h2>
             <p className="mx-auto max-w-2xl text-fd-muted-foreground">
-              Zero lines of SSH protocol code. OpenSSH handles the connection,
-              podspawn handles containers.
+              Commit a <code className="font-mono text-fd-foreground">podfile.yaml</code> to your repo.
+              Every contributor, CI runner, and AI agent gets the exact same environment.
             </p>
           </div>
-          <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card p-8 font-mono text-sm">
-            <pre className="overflow-x-auto text-fd-muted-foreground leading-relaxed">
-{`ssh alice@work.pod
-  |
-  v
-~/.ssh/config matches *.pod
-  |
-  v
-ProxyCommand: podspawn connect alice work.pod 22
-  |
-  v
-sshd calls: podspawn auth-keys alice
-  |
-  +-- alice in /etc/podspawn/keys/alice?
-  |   YES -> return keys with command="podspawn spawn --user alice"
-  |   NO  -> return nothing, sshd falls through to normal auth
-  |
-  v
-podspawn spawn detects session type:
-  |-- empty         -> interactive shell
-  |-- sftp-server   -> SFTP subsystem
-  |-- scp ...       -> scp transfer
-  +-- anything else -> remote command
-  |
-  v
-Container created/reattached, I/O piped, exit code propagated
-  |
-  v
-User exits -> grace period -> container destroyed (ephemeral)
-          or -> container stays alive (persistent)`}
-            </pre>
-          </div>
+        </Reveal>
+        <Reveal delay={0.15}>
+          <PodfileShowcase />
+        </Reveal>
+      </section>
+
+      {/* ─── Three Modes ─── */}
+      <section className="bg-gradient-to-b from-fd-card/30 via-fd-card/15 to-transparent">
+        <div className="mx-auto max-w-6xl px-6 py-24 lg:py-32">
+          <Reveal>
+            <div className="mb-12 text-center">
+              <h2 className="mb-4 text-3xl font-bold text-fd-foreground lg:text-4xl">
+                Local, remote, or both.
+              </h2>
+              <p className="mx-auto max-w-2xl text-fd-muted-foreground">
+                Three ways to use the same tool. Same Podfile, same containers, same workflow.
+              </p>
+            </div>
+          </Reveal>
+          <Reveal delay={0.15}>
+            <ModeCards />
+          </Reveal>
         </div>
       </section>
 
-      {/* Comparison table */}
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-fd-foreground">
-            Comparison
-          </h2>
-          <p className="mx-auto max-w-2xl text-fd-muted-foreground">
-            Podspawn is not competing with Docker Desktop or WSL. It competes with
-            Codespaces, Coder, and DevPod -- remote dev environment platforms.
-          </p>
-        </div>
-        <div className="overflow-x-auto rounded-xl border border-fd-border">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-fd-border bg-fd-card">
-                <th className="py-3 pr-4 pl-4 text-sm font-medium text-fd-muted-foreground">Feature</th>
-                <th className="py-3 px-4 text-sm font-medium text-center text-fd-primary">podspawn</th>
-                <th className="py-3 px-4 text-sm font-medium text-center text-fd-muted-foreground">ContainerSSH</th>
-                <th className="py-3 px-4 text-sm font-medium text-center text-fd-muted-foreground">Coder</th>
-                <th className="py-3 px-4 text-sm font-medium text-center text-fd-muted-foreground">Codespaces</th>
-              </tr>
-            </thead>
-            <tbody>
-              <ComparisonRow feature="Native sshd" podspawn="Yes" containerSSH="No" coder="No" codespaces="N/A" />
-              <ComparisonRow feature="SSH-triggered" podspawn="Yes" containerSSH="Yes" coder="No" codespaces="No" />
-              <ComparisonRow feature="All SSH features" podspawn="Yes" containerSSH="Partial" coder="Yes" codespaces="Yes" />
-              <ComparisonRow feature="Declarative env spec" podspawn="Podfile" containerSSH="No" coder="Partial" codespaces="No" />
-              <ComparisonRow feature="Companion services" podspawn="Yes" containerSSH="No" coder="Yes" codespaces="Yes" />
-              <ComparisonRow feature="Ephemeral + persistent" podspawn="Both" containerSSH="Ephemeral" coder="Persistent" codespaces="Persistent" />
-              <ComparisonRow feature="Zero client install" podspawn="Yes" containerSSH="Yes" coder="No" codespaces="No" />
-              <ComparisonRow feature="Self-hosted" podspawn="Easy" containerSSH="Hard" coder="Hard" codespaces="No" />
-              <ComparisonRow feature="Open source" podspawn="AGPL" containerSSH="Apache" coder="AGPL" codespaces="No" />
-            </tbody>
-          </table>
+      {/* ─── Feature Deep-Dives ─── */}
+      <section className="mx-auto max-w-6xl px-6 py-24 lg:py-32 space-y-24 lg:space-y-32">
+        <Reveal>
+          <div className="text-center">
+            <h2 className="mb-4 text-3xl font-bold text-fd-foreground lg:text-4xl">
+              Built for real development.
+            </h2>
+          </div>
+        </Reveal>
+
+        <Reveal>
+          <FeatureRow
+            title="Composable Podfiles"
+            description="extends: ubuntu-dev inherits a base with git, ripgrep, fzf, neovim, jq. Your Podfile adds what's specific to your project. Deep merge with bang-replace syntax for full control. Multi-level chains supported."
+            visual={
+              <div className="rounded-xl border border-fd-border bg-fd-card p-6 font-mono text-sm space-y-3">
+                <div className="text-fd-muted-foreground"># base: ubuntu-dev</div>
+                <div><span className="text-blue-400">packages</span>: [git, curl, ripgrep, fzf, neovim, jq]</div>
+                <div className="flex items-center gap-2 my-4">
+                  <Layers className="size-4 text-fd-primary" />
+                  <span className="text-fd-primary text-xs font-medium">extends + merges</span>
+                </div>
+                <div className="text-fd-muted-foreground"># your podfile.yaml</div>
+                <div><span className="text-blue-400">packages</span>: [go@1.25]</div>
+                <div className="flex items-center gap-2 my-4">
+                  <span className="text-green-400">=</span>
+                  <span className="text-xs text-fd-muted-foreground">result</span>
+                </div>
+                <div><span className="text-green-400">packages</span>: [git, curl, ripgrep, fzf, neovim, jq, <span className="text-fd-primary">go@1.25</span>]</div>
+              </div>
+            }
+          />
+        </Reveal>
+
+        <Reveal>
+          <FeatureRow
+            reverse
+            title="Companion services"
+            description="Postgres, Redis, or any Docker image as sidecar containers on a shared bridge network. Access them by name -- postgres:5432 resolves inside your container. Services start with podspawn dev and stop with podspawn down."
+            visual={
+              <div className="rounded-xl border border-fd-border bg-fd-card p-6">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    <ServiceBox name="your container" primary />
+                  </div>
+                  <Network className="size-5 text-fd-primary" />
+                  <div className="text-xs text-fd-muted-foreground">bridge network</div>
+                  <div className="flex items-center gap-4">
+                    <ServiceBox name="postgres:5432" />
+                    <ServiceBox name="redis:6379" />
+                  </div>
+                </div>
+              </div>
+            }
+          />
+        </Reveal>
+
+        <Reveal>
+          <FeatureRow
+            title="Hardened by default"
+            description="Security isn't an afterthought. Every container drops all capabilities, enables no-new-privileges, and enforces PID limits. Per-user bridge networks isolate traffic. Optional gVisor runtime for untrusted workloads."
+            visual={
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { icon: Shield, label: "cap-drop ALL" },
+                  { icon: Shield, label: "no-new-privileges" },
+                  { icon: Shield, label: "PID limits" },
+                  { icon: Shield, label: "per-user networks" },
+                  { icon: Shield, label: "gVisor support" },
+                  { icon: Shield, label: "audit logging" },
+                ].map(({ icon: Icon, label }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-2.5 rounded-lg border border-fd-border bg-fd-card p-3"
+                  >
+                    <Icon className="size-4 text-green-500 shrink-0" />
+                    <span className="text-sm text-fd-foreground">{label}</span>
+                  </div>
+                ))}
+              </div>
+            }
+          />
+        </Reveal>
+
+        <Reveal>
+          <FeatureRow
+            reverse
+            title="Every SSH feature works"
+            description="SFTP, scp, rsync, port forwarding, agent forwarding. VS Code Remote, JetBrains Gateway, Cursor. Because podspawn hooks into native sshd, not a custom SSH server. OpenSSH handles the protocol."
+            visual={
+              <div className="grid grid-cols-3 gap-3">
+                {["SFTP", "scp", "rsync", "Port fwd", "Agent fwd", "VS Code", "JetBrains", "Cursor", "Any client"].map(
+                  (name) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-center rounded-lg border border-fd-border bg-fd-card px-3 py-3 text-sm text-fd-foreground"
+                    >
+                      <Monitor className="size-3.5 mr-1.5 text-fd-primary" />
+                      {name}
+                    </div>
+                  )
+                )}
+              </div>
+            }
+          />
+        </Reveal>
+      </section>
+
+      {/* ─── Comparison ─── */}
+      <section className="bg-gradient-to-b from-fd-card/20 via-fd-card/10 to-transparent">
+        <div className="mx-auto max-w-6xl px-6 py-24 lg:py-32">
+          <Reveal>
+            <div className="mb-12 text-center">
+              <h2 className="mb-4 text-3xl font-bold text-fd-foreground lg:text-4xl">
+                How it compares
+              </h2>
+              <p className="mx-auto max-w-2xl text-fd-muted-foreground">
+                Podspawn competes with Codespaces, Coder, and ContainerSSH. Not Docker Desktop or WSL.
+              </p>
+            </div>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <ComparisonTable />
+          </Reveal>
         </div>
       </section>
 
-      {/* Install CTA */}
-      <section className="border-t border-fd-border bg-fd-card/50">
-        <div className="mx-auto max-w-6xl px-6 py-24 text-center">
-          <h2 className="mb-4 text-3xl font-bold text-fd-foreground">
-            30 seconds to SSH containers
-          </h2>
-          <p className="mx-auto mb-8 max-w-xl text-fd-muted-foreground">
-            Install the binary, run server-setup, add a user. That&apos;s it.
-          </p>
-          <div className="mx-auto max-w-lg overflow-hidden rounded-xl border border-fd-border bg-fd-card">
-            <div className="flex items-center gap-2 border-b border-fd-border px-4 py-3">
-              <div className="size-3 rounded-full bg-red-500/80" />
-              <div className="size-3 rounded-full bg-yellow-500/80" />
-              <div className="size-3 rounded-full bg-green-500/80" />
-            </div>
-            <div className="p-6 text-left font-mono text-sm">
-              <div><span className="text-green-400">$</span> <span className="text-fd-foreground">curl -sSf https://podspawn.dev/install.sh | sh</span></div>
-              <div className="mt-2"><span className="text-green-400">$</span> <span className="text-fd-foreground">sudo podspawn server-setup</span></div>
-              <div className="mt-2"><span className="text-green-400">$</span> <span className="text-fd-foreground">sudo podspawn add-user alice --github alice</span></div>
-              <div className="mt-4 text-fd-muted-foreground"># On the client:</div>
-              <div className="mt-1"><span className="text-green-400">$</span> <span className="text-fd-foreground">ssh alice@yourserver.com</span></div>
-              <div className="mt-1 text-blue-400">alice@container:~$</div>
-            </div>
+      {/* ─── Install CTA ─── */}
+      <section className="mx-auto max-w-6xl px-6 py-24 lg:py-32">
+        <Reveal>
+          <div className="text-center mb-10">
+            <h2 className="mb-4 text-3xl font-bold text-fd-foreground lg:text-4xl">
+              Try it in 30 seconds
+            </h2>
+            <p className="mx-auto max-w-xl text-fd-muted-foreground">
+              Install the binary, enter your project, run <code className="font-mono text-fd-foreground">podspawn dev</code>.
+              No Podfile yet? <code className="font-mono text-fd-foreground">podspawn init</code> scaffolds one.
+            </p>
           </div>
-          <div className="mt-8">
+        </Reveal>
+        <Reveal delay={0.1}>
+          <InstallBlock />
+        </Reveal>
+        <Reveal delay={0.2}>
+          <div className="mt-10 flex justify-center gap-4">
             <Link
               href="/docs"
               className="inline-flex items-center gap-2 rounded-lg bg-fd-primary px-8 py-3 text-sm font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
@@ -328,16 +311,37 @@ User exits -> grace period -> container destroyed (ephemeral)
               Read the docs
               <ArrowRight className="size-4" />
             </Link>
+            <Link
+              href="https://github.com/podspawn/podspawn"
+              className="inline-flex items-center gap-2 rounded-lg border border-fd-border bg-fd-card px-8 py-3 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              <GitBranch className="size-4" />
+              GitHub
+            </Link>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-fd-border">
+      {/* ─── Footer ─── */}
+      <footer className="mt-8">
         <div className="mx-auto max-w-6xl px-6 py-8 text-center text-sm text-fd-muted-foreground">
           Built with care. AGPL-3.0 licensed. Not affiliated with Docker, Inc.
         </div>
       </footer>
+    </div>
+  );
+}
+
+function ServiceBox({ name, primary }: { name: string; primary?: boolean }) {
+  return (
+    <div
+      className={`rounded-lg border px-4 py-2.5 text-sm font-mono ${
+        primary
+          ? "border-fd-primary/50 bg-fd-primary/10 text-fd-primary"
+          : "border-fd-border bg-fd-card text-fd-muted-foreground"
+      }`}
+    >
+      {name}
     </div>
   );
 }
