@@ -1,5 +1,5 @@
 {
   "title": "Dev Environments",
   "icon": "Code",
-  "pages": ["quickstart", "podfile-authoring", "init", "services-ports", "extending", "reference"]
+  "pages": ["quickstart", "podfile-authoring", "init", "services-ports", "extending", "reference", "examples"]
 }
