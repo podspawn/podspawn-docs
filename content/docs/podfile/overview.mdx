@@ -48,8 +48,14 @@ There is no merging. Whichever file is found first is used in its entirety.
 Here is a Podfile using every available field:
 
 ```yaml
-# Base Docker image (required)
+# Inherit from a base Podfile (alternative to specifying base directly)
+# extends: ubuntu-dev
+
+# Base Docker image (required unless extends is set)
 base: ubuntu:24.04
+
+# Session name override (default: derived from directory name)
+# name: my-project
 
 # Packages to install
 # Plain names use apt-get. Versioned packages use name@version syntax.
@@ -60,7 +66,7 @@ packages:
   - nodejs@22
   - python@3.12
   - go@1.22
-  - rust
+  - rust@stable
 
 # Default shell for interactive sessions
 shell: /bin/zsh
@@ -101,6 +107,7 @@ services:
 # Ports to expose from the dev container
 ports:
   expose: [3000, 8080]
+  strategy: auto  # auto | manual | expose
 
 # Resource limits
 resources:
@@ -119,6 +126,15 @@ on_start: echo "ready"
 extra_commands:
   - apt-get install -y libssl-dev
   - ldconfig
+
+# How host directory is available inside the container (for podspawn dev)
+mount: bind  # bind | copy | none
+
+# Session lifecycle mode
+mode: grace-period  # grace-period | destroy-on-disconnect | persistent
+
+# Mount target inside container (default: /workspace/<dirname>)
+# workspace: /workspace/myapp
 ```
 
 ## Field reference
