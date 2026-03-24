@@ -1,0 +1,22 @@
+# podspawn-docs development environment
+# Run: podspawn dev
+extends: ubuntu-dev
+
+packages:
+  - nodejs@22
+
+ports:
+  expose: [3000]
+  strategy: auto
+
+resources:
+  cpus: 1.0
+  memory: 2g
+
+on_create: |
+  npm install -g bun
+  bun install
+
+on_start: |
+  echo "podspawn-docs: Node $(node --version), bun $(bun --version)"
+  echo "run 'bun run dev' to start on port 3000"
