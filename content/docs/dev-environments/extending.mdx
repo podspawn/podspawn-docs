@@ -1,0 +1,141 @@
+---
+title: Extending Podfiles
+description: Compose environments by inheriting from base Podfiles.
+---
+
+The `extends` field lets a Podfile inherit from a base, then customize on top. This avoids duplicating common setup across repos.
+
+## Basic usage
+
+```yaml
+extends: ubuntu-dev
+packages: [go@1.24, make]
+on_create: go mod download
+```
+
+This inherits everything from the `ubuntu-dev` base (git, curl, ripgrep, fzf, neovim, jq, etc.) and adds Go on top.
+
+## Resolution order
+
+The `extends` value is resolved in this order:
+
+1. **Local file path** -- `extends: ./base/podfile.yaml` or `extends: /absolute/path.yaml`
+2. **Registry shorthand** -- `extends: ubuntu-dev` looks up in the embedded registry, then in cached bases
+3. **GitHub URL** -- `extends: github.com/myorg/bases/go-base.yaml` fetches from GitHub
+
+### Available bases
+
+| Name | Description |
+|------|-------------|
+| `ubuntu-dev` | Ubuntu 24.04 + git, curl, ripgrep, fzf, neovim, jq, htop, make |
+| `minimal` | Ubuntu 24.04 + git, curl |
+
+See the full list at [podspawn/podfiles](https://github.com/podspawn/podfiles).
+
+## Merge semantics
+
+When a child Podfile extends a base, fields are merged according to their type:
+
+| Field type | Merge behavior |
+|-----------|---------------|
+| Scalars (`base`, `shell`, `mount`, `mode`) | Child wins if non-empty |
+| Lists (`packages`, `repos`, `services`, `extra_commands`) | Child appends to base, duplicates removed |
+| Maps (`env`) | Merge, child wins on key conflict |
+| Hooks (`on_create`, `on_start`) | Concatenate: base runs first, then child |
+| Structs (`dotfiles`, `resources`) | Child overrides per-field (`resources.memory` can change without affecting `resources.cpus`) |
+
+### Example
+
+Base (`ubuntu-dev`):
+```yaml
+base: ubuntu:24.04
+packages: [git, curl, ripgrep, fzf, neovim, jq]
+shell: /bin/bash
+```
+
+Child:
+```yaml
+extends: ubuntu-dev
+packages: [go@1.24]
+shell: /bin/zsh
+on_create: go mod download
+```
+
+Result:
+```yaml
+base: ubuntu:24.04
+packages: [git, curl, ripgrep, fzf, neovim, jq, go@1.24]
+shell: /bin/zsh
+on_create: go mod download
+```
+
+## Bang-replace syntax
+
+To fully replace a base field instead of merging, use the `!` suffix on the YAML key:
+
+```yaml
+extends: ubuntu-dev
+packages!: [only-this-package]
+env!:
+  CLEAN: slate
+on_create!: |
+  completely-replace-base-hooks
+```
+
+This works for `packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, and `on_start!`.
+
+## Item-level removal
+
+Remove specific items from a base list by prefixing with `!` (quoted):
+
+```yaml
+extends: ubuntu-dev
+packages:
+  - "!neovim"
+  - "!htop"
+  - go@1.24
+```
+
+Result: everything from ubuntu-dev except neovim and htop, plus go. The `!` prefix must be quoted because `!` is special in YAML.
+
+Same pattern works for services (by name) and repos (by URL):
+
+```yaml
+services:
+  - name: "!redis"
+```
+
+## Multi-level extends
+
+Extends chains are resolved recursively:
+
+```yaml
+# grandparent.yaml
+base: ubuntu:24.04
+packages: [git]
+
+# parent.yaml
+extends: ./grandparent.yaml
+packages: [go]
+
+# child podfile.yaml
+extends: ./parent.yaml
+packages: [npm]
+# result: packages = [git, go, npm]
+```
+
+Maximum chain depth is 10. Circular references are detected and rejected.
+
+## Building org-wide bases
+
+For organizations with many repos sharing common tooling:
+
+1. Create a base Podfile in a shared repo or as a local file
+2. Reference it from each project's Podfile via `extends`
+3. Changes to the base automatically propagate (image hash changes trigger rebuilds)
+
+```yaml
+# In each project
+extends: github.com/myorg/podfiles/go-base.yaml
+packages: [project-specific-tool]
+```

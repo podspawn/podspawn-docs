@@ -1,0 +1,144 @@
+---
+title: Podfile Reference (Complete)
+description: Every field in podfile.yaml, documented with types, defaults, and merge behavior.
+---
+
+Complete reference for all Podfile fields. For a tutorial introduction, see [Getting Started](/docs/dev-environments/quickstart).
+
+## Full schema
+
+```yaml
+# Base image (required unless extends is set)
+base: ubuntu:24.04
+
+# Inherit from another Podfile
+extends: ubuntu-dev  # registry name, local path, or GitHub URL
+
+# Session name override (default: derived from directory name + hash)
+name: my-project
+
+# Packages to install
+packages:
+  - go@1.24
+  - nodejs@22
+  - ripgrep
+
+# Default shell
+shell: /bin/bash  # default
+
+# Dotfiles repository
+dotfiles:
+  repo: github.com/user/dotfiles
+  install: ./install.sh
+
+# Repositories to clone inside the container
+repos:
+  - url: github.com/org/repo
+    path: /workspace/repo
+    branch: main  # default
+
+# Environment variables
+env:
+  KEY: value
+  DYNAMIC: "${PODSPAWN_USER}"  # expanded at runtime
+
+# Companion services
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+# Port forwarding
+ports:
+  expose: [3000, 8080]
+  strategy: auto  # auto | manual | expose
+
+# Resource limits
+resources:
+  cpus: 2.0
+  memory: 4g
+
+# Lifecycle hooks
+on_create: |    # runs once on first container start
+  npm install
+on_start: |     # runs every time you attach
+  echo "ready"
+
+# Additional Dockerfile RUN commands
+extra_commands:
+  - "apt-get install -y custom-tool"
+
+# How the host directory is available inside the container
+mount: bind  # bind | copy | none
+
+# Session lifecycle mode
+mode: grace-period  # grace-period | destroy-on-disconnect | persistent
+
+# Mount target inside container (default: /workspace/<dirname>)
+workspace: /workspace/myapp
+```
+
+## Field reference
+
+| Field | Type | Default | Required | Merge behavior |
+|-------|------|---------|----------|---------------|
+| `base` | string | — | Yes (unless `extends` set) | Child wins |
+| `extends` | string | — | No | Resolved, then cleared |
+| `name` | string | dir basename | No | Not inherited |
+| `packages` | list | `[]` | No | Append + dedup |
+| `shell` | string | `/bin/bash` | No | Child wins |
+| `dotfiles` | object | — | No | Child replaces entirely |
+| `repos` | list | `[]` | No | Append; same-URL: child overrides branch/path |
+| `env` | map | `{}` | No | Merge; child wins on conflict; `""` removes key |
+| `services` | list | `[]` | No | Append; same-name: child replaces service |
+| `ports.expose` | list | `[]` | No | Append + dedup |
+| `ports.strategy` | string | `auto` | No | Child wins |
+| `resources.cpus` | float | — | No | Child wins if > 0 |
+| `resources.memory` | string | — | No | Child wins if non-empty |
+| `on_create` | string | — | No | Concatenate (base first) |
+| `on_start` | string | — | No | Concatenate (base first) |
+| `extra_commands` | list | `[]` | No | Append |
+| `mount` | string | `bind` | No | Child wins |
+| `mode` | string | `grace-period` | No | Child wins |
+| `workspace` | string | `/workspace/<dir>` | No | Child wins |
+
+## Bang-replace fields
+
+Any mergeable field can use the `!` suffix to fully replace instead of merge:
+
+`packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, `on_start!`
+
+## Variable expansion
+
+Environment variables support these built-in variables:
+
+| Variable | Expands to |
+|----------|------------|
+| `${PODSPAWN_USER}` | The authenticated username |
+| `${PODSPAWN_PROJECT}` | The project/session name |
+
+## Package version syntax
+
+| Package | Syntax | Install method |
+|---------|--------|---------------|
+| Go | `go@1.24` | Official tarball |
+| Node.js | `nodejs@22` | NodeSource PPA |
+| Python | `python@3.13` | deadsnakes PPA |
+| Rust | `rust` | rustup |
+| Others | `ripgrep`, `jq` | apt-get |
+
+## Validation rules
+
+- `base` is required unless `extends` is set
+- `shell` must be an absolute path
+- `mount` must be `bind`, `copy`, or `none`
+- `mode` must be `grace-period`, `destroy-on-disconnect`, or `persistent`
+- `ports.strategy` must be `auto`, `manual`, or `expose`
+- `workspace` must be an absolute path
+- Repo paths must be absolute
+- Service names must be unique
+- `"!item"` removal syntax only valid when `extends` is set

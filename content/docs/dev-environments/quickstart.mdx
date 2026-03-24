@@ -1,0 +1,74 @@
+---
+title: Getting Started with podspawn dev
+description: Clone a repo, run one command, get a full dev environment.
+---
+
+`podspawn dev` turns any directory with a `podfile.yaml` into a ready-to-use containerized dev environment. One command, no manual setup.
+
+## The flow
+
+```bash
+git clone github.com/yourorg/yourproject
+cd yourproject
+podspawn dev
+```
+
+That's it. Podspawn reads the Podfile, builds a cached image, starts companion services (postgres, redis, etc.), bind-mounts your code into the container, and drops you into a shell.
+
+## What happens under the hood
+
+1. **Find Podfile** -- podspawn looks for `.podspawn/podfile.yaml`, then `podfile.yaml` in the current directory
+2. **Resolve extends** -- if the Podfile uses `extends:`, the base is loaded and merged
+3. **Build image** -- a Docker image is built from the merged Podfile (cached by content hash, so rebuilds only happen when the Podfile changes)
+4. **Start services** -- companion containers (databases, caches) are created on a shared network
+5. **Mount workspace** -- your local directory is bind-mounted into the container at `/workspace/<dirname>`
+6. **Run hooks** -- `on_create` runs once on first start, `on_start` runs on every attach
+7. **Open shell** -- you're dropped into the container's shell, in your workspace directory
+
+## Running commands
+
+Instead of an interactive shell, pass a command after `--`:
+
+```bash
+podspawn dev -- make test
+podspawn dev -- go build ./...
+podspawn dev -- npm run lint
+```
+
+The command runs inside the Podfile environment and exits.
+
+## Re-attaching
+
+If you exit the shell, the container stays alive for a grace period. Running `podspawn dev` again re-attaches instantly without rebuilding.
+
+## Stopping
+
+```bash
+podspawn down          # stop container and services, keep volumes
+podspawn down --clean  # also remove named volumes
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--ephemeral` | Destroy container on exit |
+| `--dotfiles` | Apply your personal dotfiles from `~/.podspawn/config.yaml` |
+| `--name <name>` | Override the session name (default: derived from directory) |
+| `--fresh` | Destroy any existing session and start clean |
+| `--ports 9090,9091` | Forward additional ports beyond what the Podfile declares |
+| `--podfile <path>` | Use a specific Podfile instead of auto-detecting |
+
+## No Podfile? No problem
+
+If no Podfile exists, run `podspawn init` to scaffold one:
+
+```bash
+podspawn init
+# Detected: Go project (go.mod found)
+# Base image? [ubuntu:24.04]
+# ...
+# Created podfile.yaml
+```
+
+See [podspawn init](/docs/dev-environments/init) for details.

@@ -1,0 +1,73 @@
+---
+title: Writing a Podfile for Your Repo
+description: Guide for repo owners who want contributors to have a one-command setup experience.
+---
+
+A Podfile committed to your repo means every contributor, CI runner, and AI agent gets the exact same development environment. No "works on my machine," no 30-minute setup docs.
+
+## Where to put it
+
+Place `podfile.yaml` at the root of your repository. Alternatively, use `.podspawn/podfile.yaml` if you prefer keeping it in a dotdir.
+
+## Minimal example
+
+```yaml
+base: ubuntu:24.04
+packages: [go@1.24, make]
+on_create: go mod download
+```
+
+This gives contributors Go 1.24, make, and pre-downloaded dependencies. That's often enough.
+
+## A real-world example
+
+```yaml
+extends: ubuntu-dev
+packages:
+  - go@1.24
+  - make
+  - protobuf-compiler
+
+env:
+  DATABASE_URL: "postgres://postgres:devpass@postgres:5432/myapp"
+
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: myapp
+
+ports:
+  expose: [8080, 9090]
+  strategy: auto
+
+on_create: |
+  go mod download
+  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  make generate
+
+on_start: |
+  echo "Ready. Run 'make dev' to start the server."
+```
+
+## Best practices
+
+**Pin package versions.** `go@1.24` is better than just `go`. Contributors should all be on the same version.
+
+**Keep it minimal.** Only include what's needed to build and test. Personal preferences (editor configs, shell themes) belong in dotfiles, not the Podfile.
+
+**Use `on_create` for heavy setup.** Dependency installation, code generation, database migrations -- anything slow goes in `on_create` because it only runs once per image.
+
+**Use `on_start` for lightweight tasks.** Welcome messages, environment checks, starting background processes.
+
+**Use `extends` for shared bases.** If your org has multiple repos with similar tooling, create a base Podfile and extend it rather than duplicating setup across repos.
+
+**Test with `podspawn dev`.** Before committing, run `podspawn dev -- make test` to verify the Podfile produces a working environment.
+
+## What not to include
+
+- **Secrets.** Never put API keys or credentials in a Podfile. Use environment variables injected at runtime.
+- **Large datasets.** Mount them as volumes or download in `on_create`.
+- **IDE-specific config.** VS Code extensions, vim plugins, etc. belong in personal dotfiles.

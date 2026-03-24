@@ -1,0 +1,74 @@
+---
+title: Scaffolding with podspawn init
+description: Auto-detect your project type and generate a starter Podfile.
+---
+
+`podspawn init` scans your project directory, detects the language and framework, and generates a `podfile.yaml` with sensible defaults.
+
+## Basic usage
+
+```bash
+cd your-project
+podspawn init
+```
+
+Output:
+```
+Detected: Go project (go.mod found)
+Base image? [ubuntu:24.04]
+Packages? [go@1.24, make]
+Add services? (postgres/redis/none) [none]
+Expose ports? [8080]
+Created podfile.yaml
+
+Run 'podspawn dev' to start.
+```
+
+## How detection works
+
+Podspawn looks for marker files in the current directory:
+
+| Marker files | Template | Priority |
+|-------------|----------|----------|
+| `go.mod` | go | 10 |
+| `package.json` | node | 10 |
+| `pyproject.toml`, `setup.py`, `requirements.txt` | python | 10 |
+| `Cargo.toml` | rust | 10 |
+| `go.mod` + `package.json` | fullstack | 20 |
+| (none) | minimal | 0 |
+
+Higher priority wins. The fullstack template requires both markers present.
+
+## Skipping the wizard
+
+Accept all defaults without prompting:
+
+```bash
+podspawn init -y
+```
+
+## Forcing a template
+
+Skip detection entirely:
+
+```bash
+podspawn init --template python
+```
+
+Available templates: `go`, `node`, `python`, `rust`, `fullstack`, `minimal`.
+
+## Fetching latest templates
+
+Templates ship with the podspawn binary, but you can fetch updates from the [community registry](https://github.com/podspawn/podfiles):
+
+```bash
+podspawn init --update
+```
+
+This downloads the latest `registry.yaml` and templates, caching them at `~/.podspawn/cache/podfiles/`.
+
+## What gets generated
+
+The output is a standard `podfile.yaml` at the project root. It's fully editable -- the generated file is a starting point, not a black box.
+
+Templates that use `extends:` inherit common packages from a base. You can remove the `extends` line and inline everything if you prefer a self-contained file.

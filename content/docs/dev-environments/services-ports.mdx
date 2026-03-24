@@ -1,0 +1,81 @@
+---
+title: Services & Port Forwarding
+description: Define companion services and control how ports are forwarded to your host.
+---
+
+## Companion services
+
+Services are Docker containers that run alongside your dev environment. They are created on a shared network, so your code can reach them by name.
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: myapp
+
+  - name: redis
+    image: redis:7
+    ports: [6379]
+```
+
+Inside the container, `postgres:5432` and `redis:6379` resolve automatically via Docker DNS.
+
+### Service lifecycle
+
+Services start when `podspawn dev` runs and stop when `podspawn down` runs. If you exit the shell, they stay alive during the grace period (same as the main container).
+
+### Named volumes
+
+Services can use named volumes to persist data across sessions:
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    ports: [5432]
+    env:
+      POSTGRES_PASSWORD: devpass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+```
+
+Volume data survives `podspawn down` but is removed with `podspawn down --clean`.
+
+## Port forwarding
+
+Ports listed in `ports.expose` are forwarded from the container to your host machine.
+
+```yaml
+ports:
+  expose: [3000, 8080]
+  strategy: auto
+```
+
+### Strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `auto` (default) | Forward to the same host port. If taken, pick the next available and print the mapping. |
+| `manual` | Only forward ports specified via `--ports` flag. Ignore Podfile ports. |
+| `expose` | Forward to the same host port. Fail if the port is already in use. |
+
+### Extra ports via flag
+
+Forward additional ports beyond what the Podfile declares:
+
+```bash
+podspawn dev --ports 9090,9091
+```
+
+These are merged with the Podfile's `ports.expose` list.
+
+### Port conflict resolution
+
+With the `auto` strategy, if port 3000 is taken on your host (maybe another project is running), podspawn picks the next available port and shows you the mapping:
+
+```
+port conflict, using alternative: wanted=3000 using=3001
+```
