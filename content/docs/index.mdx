@@ -1,55 +1,65 @@
 ---
 title: Introduction
-description: Dev container workspaces that work locally and remotely
+description: One-command dev environments, locally or over SSH
 ---
 
-Podspawn is a single binary for dev container workspaces. It works two ways: locally via Docker exec (no SSH, no root) and remotely via native sshd (zero client install). One tool, two modes, zero friction.
+Podspawn turns a `podfile.yaml` in your repo into a ready-to-use dev environment. One command for contributors, zero setup docs to maintain.
 
 ```bash
-# Local -- create a container and drop in
-podspawn create dev && podspawn shell dev
+# Clone any repo with a podfile.yaml and start working
+git clone github.com/yourorg/project
+cd project
+podspawn dev
 
-# Server -- SSH in, land in a container
+# Or create named machines directly
+podspawn create backend && podspawn shell backend
+
+# Or SSH into a remote container
 ssh alice@devbox.company.com
 ```
 
-## Two modes, same tool
+## Three modes, one tool
 
-**Local mode** talks to Docker directly. No SSH, no sshd, no root, no key management. If `docker ps` works, podspawn works. Named containers persist across shells, or use `podspawn run scratch` for one-shot throwaways.
+**`podspawn dev`** reads a Podfile from your current directory, builds a cached image, starts companion services (postgres, redis), bind-mounts your code, and opens a shell. Exit and re-enter to reattach. `podspawn down` tears everything down.
 
-**Server mode** hooks into your host's native sshd via `AuthorizedKeysCommand`, turning two lines of sshd_config into a full container workspace platform. Users SSH in with any client and land in isolated containers. Every SSH feature works -- port forwarding, SCP, SFTP, VS Code Remote -- because OpenSSH handles the protocol.
+**Local mode** (`create`/`shell`/`run`) gives you named containers that persist across shells. No SSH, no sshd, no root, no key management. If `docker ps` works, podspawn works.
+
+**Server mode** hooks into your host's native sshd via `AuthorizedKeysCommand`. Users SSH in with any client and land in isolated containers. Every SSH feature works -- port forwarding, SFTP, VS Code Remote, Cursor -- because OpenSSH handles the protocol.
 
 Same binary, same Podfile environments, same container lifecycle. The only difference is how you get in.
 
 ## What makes it different
 
-- **Podfile environments** -- declarative YAML for packages, companion services, dotfiles, and lifecycle hooks. Define your dev environment once, reproduce it anywhere.
+- **One-command setup** -- `podspawn dev` in any repo with a Podfile. No onboarding docs, no "install these 12 tools" README sections.
+- **Composable Podfiles** -- `extends: ubuntu-dev` inherits a base, your Podfile adds project-specific tools. Deep merge with bang-replace for full control.
+- **Companion services** -- postgres, redis, or any Docker image as sidecar containers on a shared network, accessible by name.
 - **Named machines** -- `podspawn create backend`, `podspawn shell backend`. Containers have names, not hex IDs.
 - **Security by default** -- cap-drop ALL, no-new-privileges, PID limits, per-user network isolation, optional gVisor.
-- **AI agent ready** -- disposable environments for agents, persistent workspaces for teams. Create, run tests, destroy. No cleanup.
+- **AI agent ready** -- disposable environments for agents, persistent workspaces for teams.
 - **Cross-platform** -- macOS, Linux, Windows. Works with OrbStack, Docker Desktop, Colima, or bare Docker.
-- **Persistent or ephemeral** -- per-user, per-project, admin's choice.
 - **Single binary, open source** -- no daemon in local mode, no custom SSH server in server mode. AGPL-3.0.
 
 ## Why not...
 
-**Docker directly?** You can, but you'll reinvent named machines, Podfile-driven environments, companion services, and lifecycle management. Podspawn is the porcelain over Docker's plumbing.
+**Docker directly?** You can, but you'll reinvent Podfile-driven environments, companion services, lifecycle management, and the "clone and start" workflow. Podspawn is the porcelain over Docker's plumbing.
 
-**OrbStack?** Excellent on macOS, but macOS-only and closed source. Podspawn is cross-platform, Podfile-driven, has server mode for teams, and is open source.
+**Codespaces / Gitpod?** Cloud-hosted, vendor-locked, pay-per-minute. Podspawn runs on your machine or your server, for free.
 
 **DevPod?** Similar goals, heavier approach. DevPod runs a daemon, requires a provider system, and doesn't have transparent SSH server mode. Podspawn is a single binary with no moving parts.
 
-**Dev Containers / devcontainer CLI?** Tightly coupled to VS Code. Podspawn works with any editor, any terminal, any SSH client.
+**Dev Containers / devcontainer CLI?** Tightly coupled to VS Code. Podspawn works with any editor, any terminal, any SSH client. It also reads devcontainer.json as a fallback.
 
 ## Quick start
 
-### Local (30 seconds)
+### One-command dev (30 seconds)
 
 ```bash
-curl -sSfL https://podspawn.dev/up | bash   # choose "Local"
-podspawn create dev
-podspawn shell dev
+curl -sSfL https://podspawn.dev/up | bash
+cd your-project
+podspawn dev
 ```
+
+No Podfile yet? `podspawn init` detects your project type and scaffolds one.
 
 ### Server (2 minutes)
 
@@ -63,17 +73,17 @@ ssh alice@yourserver.com
 
 ## Architecture at a glance
 
-Podspawn is a single binary that serves multiple roles:
+**Dev mode** -- `podspawn dev` reads the CWD Podfile, resolves extends chains, builds an image (cached by content hash), creates a container with workspace bind-mount and port forwarding, starts companion services on a bridge network, runs lifecycle hooks, and opens a shell.
 
-**Local** -- `podspawn create` and `podspawn shell` call Docker directly. No daemon, no background process. The container stays alive between shells; `podspawn stop` removes it.
+**Local mode** -- `podspawn create` and `podspawn shell` call Docker directly. No daemon, no background process. Containers persist between shells.
 
-**Server side** -- sshd invokes `podspawn auth-keys` to look up SSH keys. If the user is a container user, it returns keys with a `command=` directive that forces `podspawn spawn`, which creates or reattaches a Docker container and pipes I/O.
+**Server side** -- sshd invokes `podspawn auth-keys` to look up SSH keys. If the user is a container user, keys come with a `command=` directive that forces `podspawn spawn`, which creates or reattaches a container and pipes I/O.
 
-**Client side** -- the same binary provides `podspawn connect` as a `ProxyCommand` in `~/.ssh/config`, creating a `.pod` namespace. `ssh alice@work.pod` is intercepted before DNS, routed to the right server, and the user lands in their container. The client binary is optional; any SSH client works without it.
+**Client side** -- `podspawn connect` serves as a `ProxyCommand`, creating a `.pod` namespace. `ssh alice@work.pod` routes to the right server automatically. The client binary is optional.
 
 <Cards>
-  <Card title="Installation" href="/docs/getting-started/installation" />
-  <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="Dev Environments" href="/docs/dev-environments/quickstart" />
+  <Card title="Podfile Reference" href="/docs/dev-environments/reference" />
+  <Card title="Real-World Examples" href="/docs/dev-environments/examples" />
   <Card title="Architecture" href="/docs/concepts/architecture" />
-  <Card title="Podfile Spec" href="/docs/podfile/overview" />
 </Cards>
