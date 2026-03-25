@@ -1,4 +1,5 @@
-import { getLLMText, source } from '@/lib/source';
+import { source } from '@/lib/source';
+import { getLLMText } from '@/lib/source';
 
 export const revalidate = false;
 
