@@ -8,6 +8,7 @@ import { TypeTable } from 'fumadocs-ui/components/type-table';
 import { ImageZoom } from 'fumadocs-ui/components/image-zoom';
 import { Banner } from 'fumadocs-ui/components/banner';
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+import { Mermaid } from 'fumadocs-mermaid/ui';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
@@ -25,6 +26,7 @@ export function getMDXComponents(components?: MDXComponents) {
     ImageZoom,
     Banner,
     InlineTOC,
+    Mermaid,
     ...components,
   } satisfies MDXComponents;
 }

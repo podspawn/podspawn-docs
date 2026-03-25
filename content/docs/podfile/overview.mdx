@@ -265,6 +265,18 @@ Versioned package support is limited to the packages listed above. If you need a
 
 When podspawn processes a Podfile, it follows this pipeline:
 
+```mermaid
+graph LR
+    A["podfile.yaml"] --> B["Parse"]
+    B --> C["Resolve extends"]
+    C --> D["Generate Dockerfile"]
+    D --> E{Cached?}
+    E -->|Yes| F["Use cached"]
+    E -->|No| G["docker build"]
+    G --> F
+    F --> H["Container"]
+```
+
 ```
 podfile.yaml → Parse → Generate Dockerfile → docker build → Container
 ```

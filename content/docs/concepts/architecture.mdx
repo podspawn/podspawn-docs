@@ -65,6 +65,21 @@ All paths pipe stdin/stdout/stderr between sshd and `docker exec`, then propagat
 
 ## End-to-end flow
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant sshd
+    participant podspawn
+    participant Docker
+    Client->>sshd: SSH connection
+    sshd->>podspawn: auth-keys alice
+    podspawn-->>sshd: keys with command=spawn
+    sshd->>podspawn: spawn --user alice
+    podspawn->>Docker: Create/reattach container
+    Docker-->>podspawn: Container ready
+    podspawn-->>Client: Shell / command output
+```
+
 ```
 User runs: ssh alice@work.pod
     |

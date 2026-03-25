@@ -17,6 +17,22 @@ This inherits everything from the `ubuntu-dev` base (git, curl, ripgrep, fzf, ne
 
 ## Resolution order
 
+```mermaid
+graph TD
+    A["podfile.yaml with extends"] --> B{Resolve}
+    B -->|Local path| C["./base.yaml"]
+    B -->|Registry| D["Embedded bases"]
+    B -->|GitHub URL| E["Fetch + cache"]
+    C --> F["Parse base"]
+    D --> F
+    E --> F
+    F --> G{Base has extends?}
+    G -->|Yes| H["Recurse"]
+    G -->|No| I["Merge"]
+    H --> I
+    I --> J["Final Podfile"]
+```
+
 The `extends` value is resolved by trying each source in order until one matches:
 
 <Tabs items={['Local file path', 'Registry shorthand', 'GitHub URL']}>

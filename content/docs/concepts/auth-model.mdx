@@ -48,6 +48,17 @@ GitHub key import is a one-time operation, not a runtime dependency. The `--gith
 
 ## The auth-keys flow
 
+```mermaid
+flowchart TD
+    A["sshd receives connection"] --> B["AuthorizedKeysCommand"]
+    B --> C["podspawn auth-keys username"]
+    C --> D{Keys file exists?}
+    D -->|Yes| E["Read keys, prepend command="]
+    D -->|No| F["Return empty"]
+    E --> G["sshd matches key"]
+    G --> H["Forced command: podspawn spawn"]
+```
+
 When someone SSHes in, sshd invokes the `AuthorizedKeysCommand`:
 
 ```

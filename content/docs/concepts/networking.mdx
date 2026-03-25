@@ -26,6 +26,18 @@ resp, err := d.cli.NetworkCreate(ctx, name, network.CreateOptions{
 
 If the network already exists (from a previous crash), the existing network is reused rather than failing.
 
+```mermaid
+graph TB
+    subgraph "podspawn-alice-net"
+        A["myapp container"]
+        B["postgres :5432"]
+        C["redis :6379"]
+    end
+    A <--> B
+    A <--> C
+    D["Host :8080"] -->|port forward| A
+```
+
 ## Why not the default bridge
 
 Docker's default bridge network allows all containers to communicate by IP. On a multi-tenant podspawn server, this means alice's container could reach bob's postgres. Per-user networks prevent this:
