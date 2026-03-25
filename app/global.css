@@ -137,6 +137,10 @@
   background: transparent !important;
 }
 
+.dark svg .labelBkg {
+  background-color: transparent !important;
+}
+
 /* State diagram transition labels specifically */
 .dark svg.statediagram .edgeLabel {
   background-color: transparent !important;
