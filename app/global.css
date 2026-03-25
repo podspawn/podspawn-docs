@@ -117,7 +117,7 @@
   stroke: #DF3F00 !important;
 }
 
-/* Edge label backgrounds — subtle dark pill, tight fit */
+/* Edge label backgrounds — rounded pill, bit wider than text */
 .dark svg .edgeLabel {
   background-color: transparent !important;
 }
@@ -125,14 +125,15 @@
 .dark svg .edgeLabel rect {
   fill: #222 !important;
   stroke: none !important;
-  rx: 4 !important;
-  ry: 4 !important;
+  rx: 8 !important;
+  ry: 8 !important;
 }
 
 .dark svg .edgeLabel span,
 .dark svg .edgeLabel p {
   color: #ccc !important;
   background: transparent !important;
+  padding: 0 6px !important;
 }
 
 /* State diagram transition labels specifically */
