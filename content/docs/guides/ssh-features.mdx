@@ -7,19 +7,19 @@ Because podspawn hooks into native sshd rather than reimplementing SSH, every SS
 
 ## Feature matrix
 
-| Feature | Status | Handled by | Code in podspawn |
-|---------|--------|-----------|-----------------|
-| Interactive shell | Supported | Session router | ~30 lines (PTY, SIGWINCH) |
-| Remote commands | Supported | Session router | 0 (default exec path) |
-| SFTP | Supported | Session router | ~5 lines (detection) |
-| scp | Supported | Session router | 0 (default exec path) |
-| rsync over SSH | Supported | Session router | 0 (default exec path) |
-| Local port forwarding (`-L`) | Supported | sshd natively | 0 |
-| Remote port forwarding (`-R`) | Supported | sshd natively | 0 |
-| Dynamic forwarding / SOCKS (`-D`) | Supported | sshd natively | 0 |
-| Agent forwarding (`-A`) | Supported | sshd + bind mount | ~15 lines |
-| X11 forwarding | Supported | sshd natively | ~3 lines (env passthrough) |
-| Mosh | Not supported | N/A | N/A (requires UDP) |
+<TypeTable type={{
+  'Interactive shell': { type: '"Supported"', description: 'Session router, ~30 lines (PTY, SIGWINCH)' },
+  'Remote commands': { type: '"Supported"', description: 'Session router, 0 lines (default exec path)' },
+  'SFTP': { type: '"Supported"', description: 'Session router, ~5 lines (detection)' },
+  'scp': { type: '"Supported"', description: 'Session router, 0 lines (default exec path)' },
+  'rsync over SSH': { type: '"Supported"', description: 'Session router, 0 lines (default exec path)' },
+  'Local port forwarding (-L)': { type: '"Supported"', description: 'sshd natively, 0 lines' },
+  'Remote port forwarding (-R)': { type: '"Supported"', description: 'sshd natively, 0 lines' },
+  'Dynamic forwarding / SOCKS (-D)': { type: '"Supported"', description: 'sshd natively, 0 lines' },
+  'Agent forwarding (-A)': { type: '"Supported"', description: 'sshd + bind mount, ~15 lines' },
+  'X11 forwarding': { type: '"Supported"', description: 'sshd natively, ~3 lines (env passthrough)' },
+  'Mosh': { type: '"Not supported"', description: 'Requires UDP, cannot be tunneled through SSH' },
+}} />
 
 ## File transfer
 
@@ -204,13 +204,19 @@ If you need resilient connections over unreliable networks, consider running `tm
 
 For full feature support, your container image should include:
 
-| Tool | Required for | Package (Debian/Ubuntu) |
-|------|-------------|------------------------|
-| bash (or another shell) | Interactive sessions | `bash` |
-| sftp-server | SFTP, VS Code Remote | `openssh-sftp-server` |
-| scp | scp transfers | `openssh-client` |
-| rsync | rsync transfers | `rsync` |
-| git | Agent forwarding (useful), repo cloning | `git` |
-| locales | Proper UTF-8 support | `locales` |
+<TypeTable type={{
+  'bash': { type: '"bash"', description: 'Interactive sessions' },
+  'sftp-server': { type: '"openssh-sftp-server"', description: 'SFTP, VS Code Remote' },
+  'scp': { type: '"openssh-client"', description: 'scp transfers' },
+  'rsync': { type: '"rsync"', description: 'rsync transfers' },
+  'git': { type: '"git"', description: 'Agent forwarding (useful), repo cloning' },
+  'locales': { type: '"locales"', description: 'Proper UTF-8 support' },
+}} />
 
 Use `podspawn verify-image <image>` to check an image against these requirements.
+
+<Cards>
+  <Card title="IDE Integration" href="/docs/guides/ide-integration" />
+  <Card title="Security Hardening" href="/docs/guides/security-hardening" />
+  <Card title="AI Agents" href="/docs/guides/ai-agents" />
+</Cards>

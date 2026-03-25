@@ -43,13 +43,13 @@ Podspawn stores all state in a small number of files. Back these up regularly.
 
 **What to back up:**
 
-| Path | Contents | Frequency |
-|------|----------|-----------|
-| `/var/lib/podspawn/state.db` | Session state (SQLite, WAL mode) | Daily or before upgrades |
-| `/etc/podspawn/keys/` | Per-user public keys | After every `add-user` / `remove-user` |
-| `/etc/podspawn/config.yaml` | Server configuration | After config changes |
-| `/etc/podspawn/projects.yaml` | Project-to-repo mappings | After project changes |
-| `/etc/podspawn/users/` | Per-user override configs | After user config changes |
+<TypeTable type={{
+  '/var/lib/podspawn/state.db': { type: '"SQLite, WAL mode"', description: 'Session state', default: 'Daily or before upgrades' },
+  '/etc/podspawn/keys/': { type: '"directory"', description: 'Per-user public keys', default: 'After every add-user / remove-user' },
+  '/etc/podspawn/config.yaml': { type: '"YAML"', description: 'Server configuration', default: 'After config changes' },
+  '/etc/podspawn/projects.yaml': { type: '"YAML"', description: 'Project-to-repo mappings', default: 'After project changes' },
+  '/etc/podspawn/users/': { type: '"directory"', description: 'Per-user override configs', default: 'After user config changes' },
+}} />
 
 ### SQLite backup
 
@@ -118,17 +118,29 @@ Podspawn is a single static binary. Upgrading is a file replacement.
 
 ### Upgrade procedure
 
-```bash
-# Download the new version
-curl -sSfL https://podspawn.dev/install.sh | sh
+<Steps>
+<Step>
+Download the new version:
 
-# Or manually replace the binary
+```bash
+curl -sSfL https://podspawn.dev/install.sh | sh
+```
+
+Or manually replace the binary:
+
+```bash
 sudo cp podspawn-new /usr/local/bin/podspawn
 sudo chmod 755 /usr/local/bin/podspawn
+```
+</Step>
+<Step>
+Restart the cleanup daemon to pick up the new binary:
 
-# Restart the cleanup daemon (picks up the new binary)
+```bash
 sudo systemctl restart podspawn-cleanup.service
 ```
+</Step>
+</Steps>
 
 ### What happens to existing sessions
 
@@ -175,14 +187,14 @@ Outputs metrics in Prometheus exposition format. Integrate with node_exporter's 
 
 Available metrics:
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `podspawn_sessions_total` | gauge | Total tracked sessions |
-| `podspawn_sessions_running` | gauge | Sessions in running state |
-| `podspawn_sessions_grace` | gauge | Sessions in grace period |
-| `podspawn_connections_total` | gauge | Active SSH connections |
-| `podspawn_containers_docker` | gauge | Docker containers with `managed-by=podspawn` |
-| `podspawn_oldest_session_seconds` | gauge | Age of the longest-running session |
+<TypeTable type={{
+  podspawn_sessions_total: { type: '"gauge"', description: 'Total tracked sessions' },
+  podspawn_sessions_running: { type: '"gauge"', description: 'Sessions in running state' },
+  podspawn_sessions_grace: { type: '"gauge"', description: 'Sessions in grace period' },
+  podspawn_connections_total: { type: '"gauge"', description: 'Active SSH connections' },
+  podspawn_containers_docker: { type: '"gauge"', description: 'Docker containers with managed-by=podspawn' },
+  podspawn_oldest_session_seconds: { type: '"gauge"', description: 'Age of the longest-running session' },
+}} />
 
 ### Cleanup daemon health
 
@@ -325,3 +337,9 @@ logrotate -f /etc/logrotate.d/podspawn
 
 </Accordion>
 </Accordions>
+
+<Cards>
+  <Card title="Security Hardening" href="/docs/guides/security-hardening" />
+  <Card title="Troubleshooting" href="/docs/guides/troubleshooting" />
+  <Card title="Server Config" href="/docs/configuration/server" />
+</Cards>

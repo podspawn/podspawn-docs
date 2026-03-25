@@ -89,6 +89,10 @@ VS Code connects, installs its server component inside the container, and opens 
 
 ### Using the .pod namespace
 
+<Callout type="idea">
+The `.pod` namespace lets you connect to project-specific containers by name. Run `podspawn setup` once, then use `alice@backend.pod` as the SSH host in any IDE.
+</Callout>
+
 With the client configured, you can connect to project-specific containers:
 
 ```
@@ -209,18 +213,18 @@ If you've restricted outbound network access, ensure the container can reach Cur
 
 ## Feature support matrix
 
-| Feature | VS Code Remote | JetBrains Gateway | Cursor Remote |
-|---------|---------------|-------------------|---------------|
-| File editing | Yes | Yes | Yes |
-| Terminal | Yes | Yes | Yes |
-| Language servers | Yes | Yes | Yes |
-| Debugging | Yes | Yes | Yes |
-| Port forwarding | Yes (automatic) | Yes | Yes (automatic) |
-| Extensions/plugins | Install in container | Install in container | Install in container |
-| Git integration | Yes | Yes | Yes |
-| Agent forwarding | Yes (with `-A`) | Yes | Yes (with `-A`) |
-| .pod namespace | Yes | Yes | Yes |
-| Reconnect to same container | Yes (within grace period) | Yes (within grace period) | Yes (within grace period) |
+<TypeTable type={{
+  'File editing': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Terminal': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Language servers': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Debugging': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Port forwarding': { type: '"Yes"', description: 'Automatic in VS Code and Cursor, manual in JetBrains' },
+  'Extensions/plugins': { type: '"Yes"', description: 'Installed inside the container for all IDEs' },
+  'Git integration': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Agent forwarding': { type: '"Yes"', description: 'Requires -A flag for VS Code and Cursor' },
+  '.pod namespace': { type: '"Yes"', description: 'VS Code, JetBrains, Cursor' },
+  'Reconnect to same container': { type: '"Yes"', description: 'Within grace period for all IDEs' },
+}} />
 
 ## Tips
 
@@ -265,3 +269,9 @@ Host *.pod
 ```
 
 This makes your local SSH keys available inside the container without copying them.
+
+<Cards>
+  <Card title="SSH Features" href="/docs/guides/ssh-features" />
+  <Card title="Tutorial" href="/docs/guides/tutorial" />
+  <Card title="Client Setup" href="/docs/getting-started/client-setup" />
+</Cards>

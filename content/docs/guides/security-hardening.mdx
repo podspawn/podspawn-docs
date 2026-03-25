@@ -3,6 +3,8 @@ title: Security Hardening
 description: Default security posture and options for hardening podspawn container environments
 ---
 
+<Banner>podspawn is hardened by default -- cap-drop ALL, no-new-privileges, PID limits. This guide covers additional hardening options.</Banner>
+
 Podspawn containers ship with a hardened security baseline in both local and server mode. The settings below apply to all containers regardless of how they're created.
 
 In server mode, podspawn delegates authentication and encryption to native sshd rather than implementing its own SSH server. This eliminates an entire class of vulnerabilities (like CVE-2024-45337, an authentication bypass in Go's `x/crypto/ssh` library that affected custom SSH servers).
@@ -38,14 +40,14 @@ security:
 
 All Linux capabilities are dropped, then only the minimum set needed for a functional dev environment is added back:
 
-| Capability | Why it's needed |
-|-----------|----------------|
-| CHOWN | Changing file ownership (e.g., `chown` in setup scripts) |
-| SETUID | Switching users inside the container |
-| SETGID | Group permission operations |
-| DAC_OVERRIDE | Reading/writing files regardless of permissions (needed for dev workflows) |
-| FOWNER | Operations on files regardless of ownership |
-| NET_BIND_SERVICE | Binding to ports below 1024 |
+<TypeTable type={{
+  CHOWN: { type: '"cap"', description: 'Changing file ownership (e.g., chown in setup scripts)' },
+  SETUID: { type: '"cap"', description: 'Switching users inside the container' },
+  SETGID: { type: '"cap"', description: 'Group permission operations' },
+  DAC_OVERRIDE: { type: '"cap"', description: 'Reading/writing files regardless of permissions (needed for dev workflows)' },
+  FOWNER: { type: '"cap"', description: 'Operations on files regardless of ownership' },
+  NET_BIND_SERVICE: { type: '"cap"', description: 'Binding to ports below 1024' },
+}} />
 
 `no-new-privileges` prevents processes from gaining additional capabilities through setuid/setgid binaries or filesystem capabilities.
 
@@ -242,13 +244,13 @@ log:
 
 Events logged:
 
-| Event | Details |
-|-------|---------|
-| connect | User, project, container name, connection count |
-| disconnect | User, project, container name, remaining connections |
-| container_create | User, project, container name, image |
-| container_destroy | User, project, container name, reason |
-| command | User, project, SSH_ORIGINAL_COMMAND value |
+<TypeTable type={{
+  connect: { type: '"event"', description: 'User, project, container name, connection count' },
+  disconnect: { type: '"event"', description: 'User, project, container name, remaining connections' },
+  container_create: { type: '"event"', description: 'User, project, container name, image' },
+  container_destroy: { type: '"event"', description: 'User, project, container name, reason' },
+  command: { type: '"event"', description: 'User, project, SSH_ORIGINAL_COMMAND value' },
+}} />
 
 Use these logs for compliance, debugging, and intrusion detection. The audit log is append-only and separate from the general application log.
 
@@ -270,3 +272,9 @@ If podspawn ever malfunctions, the emergency key at `/etc/podspawn/emergency.key
 
 </Accordion>
 </Accordions>
+
+<Cards>
+  <Card title="Operations" href="/docs/guides/operations" />
+  <Card title="Networking" href="/docs/concepts/networking" />
+  <Card title="Server Config" href="/docs/configuration/server" />
+</Cards>

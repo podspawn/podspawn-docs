@@ -3,6 +3,8 @@ title: AI Agent Environments
 description: Setting up disposable SSH environments for Claude Code, Cursor, Codex, and other AI coding agents
 ---
 
+<Banner>podspawn is built for AI agents -- disposable containers, native SSH, zero client install.</Banner>
+
 This guide covers ephemeral, destroy-on-disconnect workflows for AI agents. For persistent human development environments, see [Session Lifecycle](/docs/concepts/session-lifecycle).
 
 AI coding agents need disposable environments they can SSH into, run code, and throw away. They can't install desktop apps, navigate web UIs, or open IDEs. They can SSH.
@@ -235,7 +237,9 @@ The agent SSHes in, gets a container, does its work, and exits.
 
 ## Per-run isolation
 
-For maximum isolation between agent runs, use per-run usernames:
+<Callout type="idea">
+For maximum isolation between agent runs, use per-run usernames. Each run gets a unique user, a fresh container, and an ephemeral key pair. No state leaks between runs.
+</Callout>
 
 ```bash
 #!/bin/bash
@@ -315,3 +319,9 @@ The cleanup daemon enforces this:
 ```bash
 podspawn cleanup --daemon --interval 30s
 ```
+
+<Cards>
+  <Card title="Security Hardening" href="/docs/guides/security-hardening" />
+  <Card title="Operations" href="/docs/guides/operations" />
+  <Card title="SSH Features" href="/docs/guides/ssh-features" />
+</Cards>

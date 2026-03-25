@@ -3,6 +3,8 @@ title: Troubleshooting
 description: Common issues and how to fix them
 ---
 
+<Banner>Start with podspawn doctor -- it catches most common issues automatically.</Banner>
+
 This page covers the most common issues people hit when setting up and running podspawn, along with concrete fixes. When in doubt, start with `podspawn doctor` at the bottom of this page.
 
 <Callout type="info">
@@ -578,3 +580,9 @@ docker inspect podspawn-alice-backend | jq '.[0].State.OOMKilled'
 
 </Accordion>
 </Accordions>
+
+<Cards>
+  <Card title="Operations" href="/docs/guides/operations" />
+  <Card title="Security Hardening" href="/docs/guides/security-hardening" />
+  <Card title="Admin Commands" href="/docs/cli/admin-commands" />
+</Cards>
