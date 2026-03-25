@@ -55,14 +55,15 @@ If you're done for the day, `podspawn stop` is the right call. If you're switchi
 
 ```mermaid
 %%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
-stateDiagram-v2
-    [*] --> Running: connect
-    Running --> GracePeriod: disconnect (grace mode)
-    Running --> Destroyed: disconnect (destroy mode)
-    GracePeriod --> Running: reconnect
-    GracePeriod --> Destroyed: grace expires
-    Running --> Running: persistent stays alive
-    Destroyed --> [*]
+flowchart TD
+    Start(( )) --> Running
+    Running -->|"disconnect (grace mode)"| GracePeriod
+    Running -->|"disconnect (destroy mode)"| Destroyed
+    Running -->|"disconnect (persistent)"| Persistent["Persistent — container stays alive"]
+    GracePeriod -->|reconnect| Running
+    GracePeriod -->|grace expires| Destroyed
+    Persistent -->|reconnect| Running
+    Destroyed --> End(( ))
 ```
 
 In server mode, lifecycle is automatic. When a user runs `ssh user@project.pod`, podspawn either creates a new container or reattaches to an existing one. When she disconnects, the container enters a grace period. When the grace period expires, the container and all its companion services are destroyed.

@@ -11,7 +11,14 @@
   --color-fd-article: oklch(0.978 0.005 40);
 }
 
-/* Mermaid diagram styling — orange accent on dark backgrounds */
+/* Mermaid diagram styling — orange accent, larger text */
+.dark svg.flowchart text,
+.dark svg.statediagram text,
+.dark svg.sequenceDiagram text {
+  font-size: 14px !important;
+}
+
+/* Flowchart + state diagram nodes */
 .dark svg.flowchart .node rect,
 .dark svg.flowchart .node circle,
 .dark svg.flowchart .node polygon,
@@ -64,28 +71,43 @@
   fill: #1a0a00 !important;
 }
 
-/* Sequence diagram */
-.dark svg.sequenceDiagram .actor,
-.dark svg[class*="sequence"] rect.actor {
+/* Sequence diagram — class is "sequenceDiagram" */
+.dark svg.sequenceDiagram rect.actor {
   fill: #2a1a0a !important;
   stroke: #DF3F00 !important;
 }
 
-.dark svg[class*="sequence"] .actor-line {
-  stroke: #555 !important;
+.dark svg.sequenceDiagram line.actor-line {
+  stroke: #DF3F00 !important;
+  stroke-opacity: 0.4 !important;
 }
 
-.dark svg[class*="sequence"] .messageLine0,
-.dark svg[class*="sequence"] .messageLine1 {
+.dark svg.sequenceDiagram .messageLine0,
+.dark svg.sequenceDiagram .messageLine1 {
   stroke: #DF3F00 !important;
 }
 
-.dark svg[class*="sequence"] text.messageText {
-  fill: #ddd !important;
+.dark svg.sequenceDiagram line.loopLine {
+  stroke: #DF3F00 !important;
 }
 
-.dark svg[class*="sequence"] text.actor-text {
+.dark svg.sequenceDiagram text.messageText {
+  fill: #ddd !important;
+  font-size: 13px !important;
+}
+
+.dark svg.sequenceDiagram text.actor-text {
   fill: #f0f0f0 !important;
+  font-size: 14px !important;
+}
+
+.dark svg.sequenceDiagram .activation0 {
+  fill: #DF3F00 !important;
+  opacity: 0.3 !important;
+}
+
+.dark svg.sequenceDiagram .arrowhead {
+  fill: #DF3F00 !important;
 }
 
 /* State diagram start/end markers */
@@ -95,20 +117,21 @@
   stroke: #DF3F00 !important;
 }
 
-/* Edge label backgrounds — the gray boxes behind transition text */
+/* Edge label backgrounds — subtle dark pill, tight fit */
 .dark svg .edgeLabel {
   background-color: transparent !important;
 }
 
-.dark svg .edgeLabel rect,
-.dark svg .label rect {
-  fill: #1a1a1a !important;
+.dark svg .edgeLabel rect {
+  fill: #222 !important;
   stroke: none !important;
+  rx: 4 !important;
+  ry: 4 !important;
 }
 
 .dark svg .edgeLabel span,
 .dark svg .edgeLabel p {
-  color: #ddd !important;
+  color: #ccc !important;
   background: transparent !important;
 }
 
