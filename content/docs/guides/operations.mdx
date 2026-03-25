@@ -5,11 +5,43 @@ description: Running podspawn in production
 
 This guide covers day-to-day operations for podspawn servers: backups, upgrades, monitoring, capacity planning, and log management.
 
-## Backup
+## State directory layout
+
+<Files>
+  <Folder name="var" defaultOpen>
+    <Folder name="lib" defaultOpen>
+      <Folder name="podspawn" defaultOpen>
+        <File name="state.db" />
+        <File name="state.db-wal" />
+        <File name="state.db-shm" />
+        <Folder name="locks" />
+        <Folder name="homes" />
+      </Folder>
+    </Folder>
+    <Folder name="log" defaultOpen>
+      <Folder name="podspawn" defaultOpen>
+        <File name="podspawn.log" />
+        <File name="audit.jsonl" />
+      </Folder>
+    </Folder>
+  </Folder>
+  <Folder name="etc" defaultOpen>
+    <Folder name="podspawn" defaultOpen>
+      <File name="config.yaml" />
+      <File name="projects.yaml" />
+      <File name="emergency.keys" />
+      <Folder name="keys" />
+      <Folder name="users" />
+    </Folder>
+  </Folder>
+</Files>
+
+<Accordions>
+<Accordion title="Backup and restore">
 
 Podspawn stores all state in a small number of files. Back these up regularly.
 
-### What to back up
+**What to back up:**
 
 | Path | Contents | Frequency |
 |------|----------|-----------|
@@ -50,7 +82,7 @@ cp /etc/podspawn/projects.yaml "$BACKUP_DIR/projects.yaml" 2>/dev/null
 cp -a /etc/podspawn/users/ "$BACKUP_DIR/users/" 2>/dev/null
 ```
 
-## Restore
+### Restore
 
 To restore from backup, copy files back to their original locations and restart the cleanup daemon.
 
@@ -79,7 +111,8 @@ After restoring, the cleanup daemon will run a reconciliation pass. Any containe
 You do not need to restart sshd. The `auth-keys` and `spawn` commands read config and state on every invocation, so restored files take effect immediately.
 </Callout>
 
-## Upgrading
+</Accordion>
+<Accordion title="Upgrading">
 
 Podspawn is a single static binary. Upgrading is a file replacement.
 
@@ -115,7 +148,8 @@ sudo systemctl reload sshd
 Never `restart` sshd on a remote server unless you have out-of-band access (console, IPMI). A `reload` is always sufficient for config changes and is safe for active sessions.
 </Callout>
 
-## Monitoring
+</Accordion>
+<Accordion title="Monitoring">
 
 ### Quick status check
 
@@ -172,7 +206,8 @@ The cleanup daemon skips persistent-mode containers. They remain running after t
 
 Podspawn logs session events (create, connect, disconnect, destroy) to the audit log at `/var/log/podspawn/audit.jsonl`. Each line is a structured JSON entry with timestamp, user, project, container ID, and event type.
 
-## Capacity planning
+</Accordion>
+<Accordion title="Capacity planning">
 
 ### Disk
 
@@ -236,7 +271,8 @@ resources:
 
 `podspawn doctor` checks disk space and warns when free space drops below 5 GB. On a server install, it also validates sshd configuration, key directory permissions, and other server-specific settings (11 checks total vs. 6 in local mode).
 
-## Log rotation
+</Accordion>
+<Accordion title="Log rotation">
 
 Podspawn writes to two log files:
 
@@ -286,3 +322,6 @@ logrotate -d /etc/logrotate.d/podspawn
 # Force a rotation
 logrotate -f /etc/logrotate.d/podspawn
 ```
+
+</Accordion>
+</Accordions>
