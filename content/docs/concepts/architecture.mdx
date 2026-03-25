@@ -24,10 +24,12 @@ OpenSSH's `AuthorizedKeysCommand` is a hook that runs an external program to fet
 
 The `authkeys.Lookup` function in `internal/authkeys/authkeys.go` does the actual work:
 
-1. Validates the username (rejects path traversal like `../` or `/`)
-2. Opens `/etc/podspawn/keys/<username>` -- if the file doesn't exist, returns 0 keys
-3. For each public key line, wraps it with a forced command directive
-4. Writes the result to stdout for sshd to consume
+<Steps>
+<Step>Validates the username (rejects path traversal like `../` or `/`)</Step>
+<Step>Opens `/etc/podspawn/keys/<username>` -- if the file doesn't exist, returns 0 keys</Step>
+<Step>For each public key line, wraps it with a forced command directive</Step>
+<Step>Writes the result to stdout for sshd to consume</Step>
+</Steps>
 
 Each key line returned looks like this:
 
@@ -108,9 +110,17 @@ User exits
 
 Podspawn supports three session modes that control what happens when a user disconnects:
 
-- **grace-period** -- the container lingers for a configurable window (default 10 minutes), then gets destroyed. Reconnecting within the window reattaches to the same container.
-- **destroy-on-disconnect** -- the container is removed immediately when the SSH session ends.
-- **persistent** -- the container stays alive indefinitely until explicitly destroyed.
+<Tabs items={['grace-period', 'destroy-on-disconnect', 'persistent']}>
+<Tab value="grace-period">
+The container lingers for a configurable window (default 60 seconds), then gets destroyed. Reconnecting within the window reattaches to the same container. This is the default mode.
+</Tab>
+<Tab value="destroy-on-disconnect">
+The container is removed immediately when the SSH session ends. Designed for CI, AI agents, and environments where immediate cleanup matters.
+</Tab>
+<Tab value="persistent">
+The container stays alive indefinitely until explicitly destroyed. Home directory is bind-mounted from `/var/lib/podspawn/homes/<user>/` so files survive container recreation.
+</Tab>
+</Tabs>
 
 The mode is resolved per-container with layered precedence: server default, then user override (`/etc/podspawn/users/<username>.yaml`), then project config. See [Session Lifecycle](/docs/concepts/session-lifecycle) for the full resolution logic and cleanup behavior.
 
@@ -170,6 +180,24 @@ Podspawn's server component is not a long-running daemon. Every SSH session spaw
 The only optional daemon is `podspawn cleanup --daemon`, which enforces max lifetimes and expires grace periods. It is not in the critical path -- the system self-heals without it, just with slightly delayed cleanup.
 
 ## Key paths
+
+<Files>
+<Folder name="/etc/podspawn" defaultOpen>
+<File name="config.yaml" />
+<Folder name="keys" defaultOpen>
+<File name="&lt;username&gt;" />
+</Folder>
+</Folder>
+<Folder name="/var/lib/podspawn" defaultOpen>
+<File name="state.db" />
+<Folder name="locks">
+<File name="&lt;username&gt;.lock" />
+</Folder>
+</Folder>
+<Folder name="~/.podspawn">
+<File name="config.yaml" />
+</Folder>
+</Files>
 
 | Path | Purpose |
 |---|---|

@@ -55,21 +55,27 @@ devcontainer.json files commonly use JSONC (JSON with Comments). Podspawn strips
 
 The `postCreateCommand` and `postStartCommand` fields in devcontainer.json accept three formats. Podspawn converts all of them to a single shell string:
 
-**String** -- used as-is:
+<Tabs items={['String', 'Array', 'Object (map)']}>
+<Tab value="String">
+Used as-is:
 
 ```json
 { "postCreateCommand": "npm install && npm run build" }
 ```
+</Tab>
 
-**Array** -- joined with `&&`:
+<Tab value="Array">
+Joined with `&&`:
 
 ```json
 { "postCreateCommand": ["npm install", "npm run build"] }
 ```
 
 Becomes: `npm install && npm run build`
+</Tab>
 
-**Object (map)** -- values joined with `&&` in sorted key order:
+<Tab value="Object (map)">
+Values joined with `&&` in sorted key order:
 
 ```json
 {
@@ -81,6 +87,8 @@ Becomes: `npm install && npm run build`
 ```
 
 Becomes: `pip install -r requirements.txt && npm install` (keys sorted alphabetically).
+</Tab>
+</Tabs>
 
 <Callout>
 The conversion is lossy. Features, Docker Compose configurations, Dockerfile-based builds, and other advanced devcontainer capabilities are not supported. For full control, write a `podfile.yaml` instead.
@@ -92,8 +100,8 @@ Converted hooks (`postCreateCommand` and `postStartCommand`) run as the non-root
 
 ## Example
 
-Given this `devcontainer.json`:
-
+<Tabs items={['devcontainer.json', 'Equivalent podfile.yaml']}>
+<Tab value="devcontainer.json">
 ```json
 {
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
@@ -108,9 +116,8 @@ Given this `devcontainer.json`:
   "postStartCommand": "python manage.py migrate"
 }
 ```
-
-Podspawn converts this internally to the equivalent of:
-
+</Tab>
+<Tab value="Equivalent podfile.yaml">
 ```yaml
 base: mcr.microsoft.com/devcontainers/python:3.12
 shell: /bin/bash
@@ -122,3 +129,7 @@ ports:
 on_create: pip install -r requirements.txt
 on_start: python manage.py migrate
 ```
+
+Podspawn converts the devcontainer.json internally to this equivalent representation.
+</Tab>
+</Tabs>

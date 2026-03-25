@@ -7,17 +7,48 @@ A Podfile committed to your repo means every contributor, CI runner, and AI agen
 
 ## Where to put it
 
-Place `podfile.yaml` at the root of your repository. Alternatively, use `.podspawn/podfile.yaml` if you prefer keeping it in a dotdir.
+<Files>
+  <Folder name="your-project" defaultOpen>
+    <File name="podfile.yaml" />
+    <Folder name=".podspawn">
+      <File name="podfile.yaml" />
+    </Folder>
+    <File name="go.mod" />
+    <File name="main.go" />
+  </Folder>
+</Files>
 
-## Minimal example
+Place `podfile.yaml` at the root of your repository. Alternatively, use `.podspawn/podfile.yaml` if you prefer keeping it in a dotdir. Podspawn checks both locations, with the root file taking priority.
 
+## Minimal examples
+
+<Tabs items={['Go', 'Node.js', 'Python']}>
+  <Tab value="Go">
 ```yaml
 base: ubuntu:24.04
 packages: [go@1.24, make]
 on_create: go mod download
 ```
+  </Tab>
+  <Tab value="Node.js">
+```yaml
+base: ubuntu:24.04
+packages: [nodejs@22]
+on_create: npm install
+```
+  </Tab>
+  <Tab value="Python">
+```yaml
+base: ubuntu:24.04
+packages: [python@3.13]
+on_create: |
+  pip install uv
+  uv sync
+```
+  </Tab>
+</Tabs>
 
-This gives contributors Go 1.24, make, and pre-downloaded dependencies. That's often enough.
+This gives contributors the language toolchain and pre-downloaded dependencies. That's often enough.
 
 ## A real-world example
 
@@ -72,5 +103,28 @@ on_start: |
 Never put API keys, passwords, or credentials in a Podfile. It gets committed to git. Use environment variables injected at runtime instead.
 </Callout>
 
-- **Large datasets.** Mount them as volumes or download in `on_create`.
-- **IDE-specific config.** VS Code extensions, vim plugins, etc. belong in personal dotfiles.
+<Accordions>
+  <Accordion title="Large datasets">
+    Don't bundle data files in the Podfile. Mount them as volumes or download them in `on_create`. If the data is shared across projects, use a named volume so it persists across sessions.
+
+    ```yaml
+    services:
+      - name: data
+        image: busybox
+        volumes:
+          - shared-data:/data
+    ```
+  </Accordion>
+  <Accordion title="IDE-specific config">
+    VS Code extensions, vim plugins, Emacs packages, shell themes -- these belong in your personal [dotfiles](/docs/dev-environments/reference#dotfiles), not the Podfile. Each contributor can bring their own editor setup via the `dotfiles` field.
+
+    ```yaml
+    dotfiles:
+      repo: github.com/youruser/dotfiles
+      install: ./install.sh
+    ```
+  </Accordion>
+  <Accordion title="Secrets and credentials">
+    API keys, tokens, and database passwords for real services should never appear in a Podfile. Use environment variables injected at runtime, or a secrets manager. Dev-only passwords for local services (like `POSTGRES_PASSWORD: devpass`) are fine since they only exist inside the container.
+  </Accordion>
+</Accordions>

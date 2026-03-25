@@ -24,13 +24,17 @@ podspawn auth-keys <username> [key-type] [key-data]
 
 ### How it works
 
-1. Validates the username (rejects path traversal attempts like `../` or `/`)
-2. Reads `/etc/podspawn/keys/<username>` (one key per line, standard authorized_keys format)
-3. For each key, writes an authorized_keys line to stdout:
-   ```
-   command="/usr/local/bin/podspawn spawn --user alice",restrict,pty,agent-forwarding,port-forwarding,X11-forwarding ssh-ed25519 AAAA... alice@laptop
-   ```
-4. If the file doesn't exist, outputs nothing (exit 0). sshd falls through to normal auth.
+<Steps>
+<Step>Validates the username (rejects path traversal attempts like `../` or `/`)</Step>
+<Step>Reads `/etc/podspawn/keys/<username>` (one key per line, standard authorized_keys format)</Step>
+<Step>
+For each key, writes an authorized_keys line to stdout:
+```
+command="/usr/local/bin/podspawn spawn --user alice",restrict,pty,agent-forwarding,port-forwarding,X11-forwarding ssh-ed25519 AAAA... alice@laptop
+```
+</Step>
+<Step>If the file doesn't exist, outputs nothing (exit 0). sshd falls through to normal auth.</Step>
+</Steps>
 
 ### sshd_config integration
 
@@ -107,6 +111,29 @@ Configures sshd for podspawn integration. Creates the `/etc/podspawn/` directory
 
 Requires root privileges.
 
+### Directory structure created
+
+<Files>
+<Folder name="/etc/podspawn" defaultOpen>
+<File name="config.yaml" />
+<Folder name="keys" defaultOpen>
+<File name="alice" />
+<File name="bob" />
+</Folder>
+<Folder name="users">
+<File name="alice.yaml" />
+</Folder>
+<File name="projects.yaml" />
+<File name="emergency.keys" />
+</Folder>
+<Folder name="/var/lib/podspawn" defaultOpen>
+<File name="state.db" />
+<Folder name="locks" />
+<Folder name="homes" />
+<Folder name="projects" />
+</Folder>
+</Files>
+
 ```bash
 sudo podspawn server-setup [flags]
 ```
@@ -121,14 +148,16 @@ sudo podspawn server-setup [flags]
 
 ### What it does
 
-1. Validates the current sshd_config with `sshd -t`
-2. Backs up sshd_config before changes
-3. Verifies existing auth methods still work (prevents lockout)
-4. Appends `AuthorizedKeysCommand` and `AuthorizedKeysCommandUser` lines
-5. Validates the new config with `sshd -t`
-6. If validation fails, restores the backup automatically
-7. Creates `/etc/podspawn/keys/`, `/var/lib/podspawn/`, and other required directories
-8. Reloads sshd (existing sessions survive)
+<Steps>
+<Step>Validates the current sshd_config with `sshd -t`</Step>
+<Step>Backs up sshd_config before changes</Step>
+<Step>Verifies existing auth methods still work (prevents lockout)</Step>
+<Step>Appends `AuthorizedKeysCommand` and `AuthorizedKeysCommandUser` lines</Step>
+<Step>Validates the new config with `sshd -t`</Step>
+<Step>If validation fails, restores the backup automatically</Step>
+<Step>Creates `/etc/podspawn/keys/`, `/var/lib/podspawn/`, and other required directories</Step>
+<Step>Reloads sshd (existing sessions survive)</Step>
+</Steps>
 
 ### Examples
 

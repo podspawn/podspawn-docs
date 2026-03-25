@@ -9,7 +9,12 @@ In server mode, podspawn delegates authentication and encryption to native sshd 
 
 This guide covers the default security configuration and options for further hardening.
 
-## Non-root containers
+## Default security posture
+
+Every container launched by podspawn ships with these security settings out of the box. You do not need to configure anything to get this baseline.
+
+<Accordions>
+<Accordion title="Non-root containers">
 
 Containers never run as root. Podspawn creates a non-root user inside every container at startup, matching your OS username (local mode) or SSH username (server mode). The user has:
 
@@ -21,11 +26,8 @@ User creation is idempotent. Reconnecting to an existing container skips user se
 
 Lifecycle hooks (`on_create`, `on_start`) and dotfiles scripts run as the non-root user. Use `sudo` for operations that need root privileges.
 
-## Default security posture
-
-Every container launched by podspawn ships with these security settings out of the box. You do not need to configure anything to get this baseline.
-
-### Capability restrictions
+</Accordion>
+<Accordion title="Capability restrictions">
 
 ```yaml
 security:
@@ -47,7 +49,8 @@ All Linux capabilities are dropped, then only the minimum set needed for a funct
 
 `no-new-privileges` prevents processes from gaining additional capabilities through setuid/setgid binaries or filesystem capabilities.
 
-### PID limits
+</Accordion>
+<Accordion title="PID limits">
 
 ```yaml
 security:
@@ -56,7 +59,8 @@ security:
 
 Limits the number of processes in each container to 256 by default. This prevents fork bombs and runaway process creation from affecting the host or other containers.
 
-### Per-user network isolation
+</Accordion>
+<Accordion title="Per-user network isolation">
 
 Each user's containers run on a dedicated Docker bridge network. The network is named `podspawn-<user>-<project>-net` (or `podspawn-<user>-net` for non-project sessions).
 
@@ -65,11 +69,18 @@ This means:
 - Companion services (postgres, redis) share the user's network and are reachable by service name
 - The host network is not shared
 
-### auth-keys crash safety
+</Accordion>
+<Accordion title="auth-keys crash safety">
 
 The `auth-keys` command includes a deferred panic recovery. If it crashes for any reason, it exits cleanly (exit 0) and sshd falls through to normal authentication. Real system users are never locked out by a podspawn bug.
 
-## Customizing capabilities
+</Accordion>
+</Accordions>
+
+## Hardening options
+
+<Accordions>
+<Accordion title="Customizing capabilities">
 
 To restrict containers further, modify `security.cap_add` in `/etc/podspawn/config.yaml`:
 
@@ -94,7 +105,8 @@ security:
 Adding `SYS_ADMIN` significantly weakens container isolation. Only do this if you need Docker-in-Docker or similar privileged operations, and only for trusted users.
 </Callout>
 
-## Seccomp profiles
+</Accordion>
+<Accordion title="Seccomp profiles">
 
 Seccomp filters restrict the system calls a container process can make. Docker's default seccomp profile blocks ~44 dangerous syscalls. You can use a custom profile for tighter restrictions.
 
@@ -120,7 +132,8 @@ To create a custom profile, start with Docker's default and remove syscalls your
 
 Place it at `/etc/podspawn/seccomp.json` and reference it in your config.
 
-## gVisor runtime
+</Accordion>
+<Accordion title="gVisor runtime">
 
 gVisor (`runsc`) interposes a user-space kernel between the container and the host kernel. Instead of containers sharing the host kernel (the default Docker model), gVisor intercepts all system calls and implements them in its own kernel. This provides a much stronger isolation boundary.
 
@@ -129,7 +142,7 @@ security:
   runtime: "runsc"
 ```
 
-### Installing gVisor
+**Installing gVisor:**
 
 ```bash
 # Add the gVisor repository
@@ -144,7 +157,7 @@ sudo runsc install
 sudo systemctl reload docker
 ```
 
-### Trade-offs
+**Trade-offs:**
 
 | Aspect | Docker (default) | gVisor |
 |--------|-----------------|--------|
@@ -157,7 +170,8 @@ sudo systemctl reload docker
 gVisor is the recommended runtime for multi-tenant deployments where users don't fully trust each other. For single-team usage, the default Docker runtime with the hardened config is sufficient.
 </Callout>
 
-## Read-only root filesystem
+</Accordion>
+<Accordion title="Read-only root filesystem">
 
 Making the root filesystem read-only prevents processes from modifying system binaries or configuration:
 
@@ -178,7 +192,12 @@ When `readonly_rootfs` is enabled, you must provide writable tmpfs mounts for di
 
 The `nosuid` flag on both prevents setuid/setgid exploitation.
 
-## PID limits
+<Callout type="warn">
+With a read-only root filesystem, `apt-get install` and similar package managers will fail. All packages must be pre-installed in the image or Podfile. This is an intentional trade-off for stronger isolation.
+</Callout>
+
+</Accordion>
+<Accordion title="PID limit tuning">
 
 Adjust the PID limit per your workload:
 
@@ -196,7 +215,8 @@ Common values:
 | 512 | Multi-process development servers (e.g., running frontend + backend) |
 | 1024 | Heavy workloads, Docker-in-Docker |
 
-## Per-user network isolation
+</Accordion>
+<Accordion title="Network isolation verification">
 
 Network isolation is automatic. Each session creates a dedicated Docker bridge network. To verify:
 
@@ -210,7 +230,8 @@ docker network inspect podspawn-alice-backend-net
 
 Companion services defined in a Podfile share the session's network, so they can communicate with the dev container by service name (e.g., `postgres:5432`). But they are isolated from other users' services.
 
-## Audit logging
+</Accordion>
+<Accordion title="Audit logging">
 
 Podspawn writes structured audit events to a log file when configured:
 
@@ -231,7 +252,8 @@ Events logged:
 
 Use these logs for compliance, debugging, and intrusion detection. The audit log is append-only and separate from the general application log.
 
-## Server setup safety
+</Accordion>
+<Accordion title="Server setup safety">
 
 The `server-setup` command is designed to be maximally defensive:
 
@@ -242,4 +264,9 @@ The `server-setup` command is designed to be maximally defensive:
 5. Creates an emergency key as a break-glass fallback
 6. Reloads (not restarts) sshd, so existing sessions survive
 
-If podspawn ever malfunctions, the emergency key at `/etc/podspawn/emergency.keys` provides a fallback SSH access path that is independent of podspawn.
+<Callout type="warn">
+If podspawn ever malfunctions, the emergency key at `/etc/podspawn/emergency.keys` provides a fallback SSH access path that is independent of podspawn. Do not delete this file.
+</Callout>
+
+</Accordion>
+</Accordions>

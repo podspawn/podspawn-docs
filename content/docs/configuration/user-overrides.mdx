@@ -7,6 +7,16 @@ User overrides let server admins customize container settings for individual use
 
 If the file does not exist for a given user, no overrides are applied and the server defaults from `/etc/podspawn/config.yaml` are used.
 
+<Files>
+<Folder name="/etc/podspawn" defaultOpen>
+<Folder name="users" defaultOpen>
+<File name="alice.yaml" />
+<File name="bob.yaml" />
+<File name="carol.yaml" />
+</Folder>
+</Folder>
+</Files>
+
 ## Full example
 
 ```yaml
@@ -26,22 +36,22 @@ dotfiles:
 
 ## Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `image` | `string` | `""` (uses server default) | Docker image for this user's container. Overrides `defaults.image` from the server config. |
-| `cpus` | `float64` | `0` (uses server default) | CPU cores allocated to this user's container. Overrides `defaults.cpus`. |
-| `memory` | `string` | `""` (uses server default) | Memory limit. Accepts `g`/`m` suffixes. Overrides `defaults.memory`. |
-| `shell` | `string` | `""` (uses server default) | Login shell inside the container. Overrides `defaults.shell`. |
-| `mode` | `string` | `""` (uses server default) | Session mode for this user. Valid values: `destroy-on-disconnect`, `grace-period`, `persistent`. Overrides `session.mode` from the server config. |
-| `env` | `map[string]string` | `{}` | Extra environment variables injected into the container. These are merged with (not replacing) any environment variables from the Podfile. |
-| `dotfiles` | `object` | `null` | Dotfiles repository to clone into the container on creation. |
+<TypeTable type={{
+  image: { type: 'string', description: 'Docker image for this user\'s container. Overrides defaults.image from server config. Empty string uses server default.' },
+  cpus: { type: 'float64', description: 'CPU cores allocated to this user\'s container. Overrides defaults.cpus. 0 uses server default.' },
+  memory: { type: 'string', description: 'Memory limit. Accepts g/m suffixes. Overrides defaults.memory. Empty string uses server default.' },
+  shell: { type: 'string', description: 'Login shell inside the container. Overrides defaults.shell. Empty string uses server default.' },
+  mode: { type: 'string', description: 'Session mode: destroy-on-disconnect, grace-period, or persistent. Overrides session.mode from server config.' },
+  env: { type: 'map[string]string', description: 'Extra environment variables injected into the container. Merged with (not replacing) Podfile env vars.' },
+  dotfiles: { type: 'object', description: 'Dotfiles repository to clone into the container on creation. See dotfiles fields below.' },
+}} />
 
 ## dotfiles
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `repo` | `string` | `""` | Git URL of the dotfiles repository. Cloned into `~/dotfiles` (i.e., `/home/<username>/dotfiles`) inside the container. |
-| `install` | `string` | `""` | Optional install command to run after cloning. Executed with `sh -c` from the `~/dotfiles` directory. |
+<TypeTable type={{
+  repo: { type: 'string', description: 'Git URL of the dotfiles repository. Cloned into ~/dotfiles inside the container.' },
+  install: { type: 'string', description: 'Optional install command to run after cloning. Executed with sh -c from the ~/dotfiles directory.' },
+}} />
 
 <Callout>
 The install script runs as the non-root container user. Use `sudo` for operations that need root privileges. A non-zero exit code from the install script is logged as a warning but does not prevent the session from starting.

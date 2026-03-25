@@ -35,8 +35,8 @@ packages:
 
 Podspawn ships with install sequences for four language runtimes. These handle repository setup, GPG keys, architecture detection, and installation automatically, so you don't need to write Dockerfile boilerplate.
 
-### Node.js
-
+<Tabs items={['Node.js', 'Python', 'Go', 'Rust']}>
+<Tab value="Node.js">
 Installed via [NodeSource](https://github.com/nodesource/distributions). Each version maps to a specific NodeSource setup script.
 
 | Version | Install method |
@@ -57,9 +57,9 @@ unsupported version nodejs@16; available: 18, 20, 22
 ```
 
 Node.js versions are fixed because each requires a different NodeSource setup script. To install an unlisted version, use `extra_commands` with nvm or fnm instead.
+</Tab>
 
-### Python
-
+<Tab value="Python">
 Installed via the [deadsnakes PPA](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa). Both the interpreter and the venv module are installed (e.g., `python3.12` and `python3.12-venv`).
 
 | Version | Packages installed |
@@ -74,9 +74,9 @@ packages:
 ```
 
 Like Node.js, Python versions are fixed. Using an unsupported version (e.g., `python@3.10`) produces an error listing the available versions.
+</Tab>
 
-### Go
-
+<Tab value="Go">
 Installed from [go.dev/dl](https://go.dev/dl/). Accepts **any version string**, so you are not limited to a fixed set.
 
 ```yaml
@@ -95,9 +95,9 @@ https://go.dev/dl/go<VERSION>.linux-<ARCH>.tar.gz
 ```
 
 If the version doesn't exist on the Go downloads page, the `curl` command fails at build time with a clear HTTP error.
+</Tab>
 
-### Rust
-
+<Tab value="Rust">
 Installed via [rustup](https://rustup.rs/). Accepts **any toolchain specifier** as the version.
 
 ```yaml
@@ -109,6 +109,8 @@ packages:
 ```
 
 The version string is passed directly to `rustup --default-toolchain`, so anything rustup understands works: `stable`, `beta`, `nightly`, specific versions, dated nightlies.
+</Tab>
+</Tabs>
 
 ### Summary table
 
@@ -147,11 +149,32 @@ Each package string is parsed into a name and optional version. `git` becomes `{
 
 Each parsed package is classified:
 
-1. **No version** -- added to the apt batch.
-2. **Version + name in version map + exact version match** -- the predefined install commands are used.
-3. **Version + name in version map + wildcard (`*`)** -- the version is interpolated into the install template (Go, Rust).
-4. **Version + name in version map + no match** -- error with available versions listed.
-5. **Version + name NOT in version map** -- falls back to apt with `name=version*`.
+<Tabs items={['apt package', 'Known runtime', 'Unknown versioned']}>
+<Tab value="apt package">
+**No version** -- added to the apt batch and installed with `apt-get install -y`.
+
+```yaml
+packages:
+  - git
+  - curl
+```
+</Tab>
+<Tab value="Known runtime">
+**Version + name in version map** -- the predefined install commands are used.
+
+- Exact version match (Node.js, Python): predefined install sequence.
+- Wildcard (`*`) match (Go, Rust): version interpolated into the install template.
+- No match: error with available versions listed.
+</Tab>
+<Tab value="Unknown versioned">
+**Version + name NOT in version map** -- falls back to apt with `name=version*`.
+
+```yaml
+packages:
+  - nginx@1.24   # becomes: apt-get install -y nginx=1.24*
+```
+</Tab>
+</Tabs>
 
 ### Step 3: sudo injection
 

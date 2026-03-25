@@ -5,99 +5,101 @@ description: Podfiles from the podspawn project itself -- Go, Node.js, and YAML 
 
 Podspawn uses its own tool for development. These are the actual Podfiles committed to each repository in the project. They cover three common setups: a Go backend, a Next.js docs site, and a simple YAML-only repo.
 
-## Go project: podspawn
+## The Podfiles
 
-The main podspawn repo is a Go CLI with golangci-lint, integration tests that need Docker, and a pre-commit hook.
+<Tabs items={['Go: podspawn', 'Node.js: podspawn-docs', 'YAML: podfiles registry']}>
+  <Tab value="Go: podspawn">
+    The main podspawn repo is a Go CLI with golangci-lint, integration tests that need Docker, and a pre-commit hook.
 
-```yaml
-extends: ubuntu-dev
+    ```yaml
+    extends: ubuntu-dev
 
-packages:
-  - go@1.25
+    packages:
+      - go@1.25
 
-resources:
-  cpus: 2.0
-  memory: 4g
+    resources:
+      cpus: 2.0
+      memory: 4g
 
-on_create: |
-  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-  go install github.com/go-delve/delve/cmd/dlv@latest
-  go mod download
-  make hooks
+    on_create: |
+      go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      go install github.com/go-delve/delve/cmd/dlv@latest
+      go mod download
+      make hooks
 
-on_start: |
-  echo "podspawn dev: Go $(go version | awk '{print $3}')"
-  echo "run 'make test' to verify, 'make lint' to check style"
-```
+    on_start: |
+      echo "podspawn dev: Go $(go version | awk '{print $3}')"
+      echo "run 'make test' to verify, 'make lint' to check style"
+    ```
 
-**What this does:**
-- `extends: ubuntu-dev` pulls in git, curl, ripgrep, fzf, neovim, jq, htop, make
-- `go@1.25` installs from the official tarball (handled by podspawn's package resolver)
-- `on_create` downloads Go tools and project dependencies once, then installs the pre-commit hook
-- `on_start` prints the version on every attach so you know what you're working with
-- No ports exposed -- podspawn is a CLI tool, not a server
+    **What this does:**
+    - `extends: ubuntu-dev` pulls in git, curl, ripgrep, fzf, neovim, jq, htop, make
+    - `go@1.25` installs from the official tarball (handled by podspawn's package resolver)
+    - `on_create` downloads Go tools and project dependencies once, then installs the pre-commit hook
+    - `on_start` prints the version on every attach so you know what you're working with
+    - No ports exposed -- podspawn is a CLI tool, not a server
 
-<Callout type="info">
-golangci-lint and delve are installed via `go install` in `on_create` rather than as packages. This is because they're Go tools that need the Go toolchain to install, and podspawn's package resolver doesn't handle them natively.
-</Callout>
+    <Callout type="info">
+    golangci-lint and delve are installed via `go install` in `on_create` rather than as packages. This is because they're Go tools that need the Go toolchain to install, and podspawn's package resolver doesn't handle them natively.
+    </Callout>
+  </Tab>
+  <Tab value="Node.js: podspawn-docs">
+    The docs site uses Fumadocs (Next.js) with bun as the package manager.
 
-## Node.js project: podspawn-docs
+    ```yaml
+    extends: ubuntu-dev
 
-The docs site uses Fumadocs (Next.js) with bun as the package manager.
+    packages:
+      - nodejs@22
 
-```yaml
-extends: ubuntu-dev
+    ports:
+      expose: [3000]
+      strategy: auto
 
-packages:
-  - nodejs@22
+    resources:
+      cpus: 1.0
+      memory: 2g
 
-ports:
-  expose: [3000]
-  strategy: auto
+    on_create: |
+      npm install -g bun
+      bun install
 
-resources:
-  cpus: 1.0
-  memory: 2g
+    on_start: |
+      echo "podspawn-docs: Node $(node --version), bun $(bun --version)"
+      echo "run 'bun run dev' to start on port 3000"
+    ```
 
-on_create: |
-  npm install -g bun
-  bun install
+    **What this does:**
+    - `nodejs@22` installs Node via the NodeSource PPA
+    - Port 3000 exposed with `auto` strategy -- if another project uses 3000, podspawn picks the next available
+    - `on_create` installs bun globally, then runs `bun install` for project deps
+    - Lower resources (1 CPU, 2GB) -- docs sites don't need much
 
-on_start: |
-  echo "podspawn-docs: Node $(node --version), bun $(bun --version)"
-  echo "run 'bun run dev' to start on port 3000"
-```
+    <Callout type="info">
+    bun is installed via npm in `on_create` rather than as a package. This keeps the Podfile simple and avoids needing a custom package entry for bun.
+    </Callout>
+  </Tab>
+  <Tab value="YAML: podfiles registry">
+    The podfiles registry is just YAML files and a CI workflow. It needs yq for local validation but almost nothing else.
 
-**What this does:**
-- `nodejs@22` installs Node via the NodeSource PPA
-- Port 3000 exposed with `auto` strategy -- if another project uses 3000, podspawn picks the next available
-- `on_create` installs bun globally, then runs `bun install` for project deps
-- Lower resources (1 CPU, 2GB) -- docs sites don't need much
+    ```yaml
+    extends: minimal
 
-<Callout type="info">
-bun is installed via npm in `on_create` rather than as a package. This keeps the Podfile simple and avoids needing a custom package entry for bun.
-</Callout>
+    on_create: |
+      curl -sSfL https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 \
+        -o /usr/local/bin/yq
+      chmod +x /usr/local/bin/yq
 
-## Minimal project: podfiles registry
+    on_start: |
+      echo "podfiles registry: $(ls templates/*.yaml bases/*.yaml | wc -l) files"
+    ```
 
-The podfiles registry is just YAML files and a CI workflow. It needs yq for local validation but almost nothing else.
-
-```yaml
-extends: minimal
-
-on_create: |
-  curl -sSfL https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 \
-    -o /usr/local/bin/yq
-  chmod +x /usr/local/bin/yq
-
-on_start: |
-  echo "podfiles registry: $(ls templates/*.yaml bases/*.yaml | wc -l) files"
-```
-
-**What this does:**
-- `extends: minimal` -- only git, curl, ca-certificates. No dev tools needed for editing YAML.
-- `on_create` fetches a specific version of yq. Pinned version avoids surprises.
-- No packages, no ports, no services, no resources override. The simplest possible Podfile.
+    **What this does:**
+    - `extends: minimal` -- only git, curl, ca-certificates. No dev tools needed for editing YAML.
+    - `on_create` fetches a specific version of yq. Pinned version avoids surprises.
+    - No packages, no ports, no services, no resources override. The simplest possible Podfile.
+  </Tab>
+</Tabs>
 
 ## Patterns to take away
 

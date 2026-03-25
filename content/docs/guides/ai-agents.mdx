@@ -26,7 +26,11 @@ exit
 # Container and all companion services self-destruct
 ```
 
-## Destroy-on-disconnect mode
+## Setting up an agent environment
+
+<Steps>
+<Step>
+### Configure destroy-on-disconnect mode
 
 For agent workflows, you want zero grace period. The container should die the instant the SSH connection closes.
 
@@ -44,8 +48,10 @@ With `destroy-on-disconnect`:
 - No grace period, no reconnect window
 - Companion services (databases, caches) are destroyed too
 - `max_lifetime` acts as a safety net for agents that hang or forget to exit
+</Step>
 
-## Setting up agent users
+<Step>
+### Register agent users
 
 Register a dedicated user for each agent (or agent run):
 
@@ -63,8 +69,10 @@ For ephemeral per-run users, clean up the key file after the run:
 # After the agent finishes
 rm /etc/podspawn/keys/agent-run-${RUN_ID}
 ```
+</Step>
 
-## Podfiles for agent workflows
+<Step>
+### Create a Podfile for agents
 
 A Podfile defines exactly what the agent needs. Commit it to your repo and every agent run gets the same environment.
 
@@ -108,33 +116,55 @@ When the agent SSHes in, it gets:
 - The repo cloned at `/workspace/backend` with dependencies installed
 - A postgres instance running and reachable at `postgres:5432`
 - Environment variables pre-configured
+</Step>
 
-## Claude Code
+<Step>
+### Connect the agent
+
+See the agent-specific setup below, then set resource limits and monitoring.
+</Step>
+</Steps>
+
+## Agent-specific setup
+
+<Tabs items={['Claude Code', 'Cursor', 'Codex']}>
+<Tab value="Claude Code">
 
 Claude Code connects via SSH and needs a shell, git, and the project's toolchain.
 
-### Setup
+<Steps>
+<Step>
+Generate a key pair for the agent:
 
-1. Generate a key pair for the agent:
-   ```bash
-   ssh-keygen -t ed25519 -f /path/to/claude-agent-key -N ""
-   ```
+```bash
+ssh-keygen -t ed25519 -f /path/to/claude-agent-key -N ""
+```
+</Step>
 
-2. Register the user:
-   ```bash
-   sudo podspawn add-user claude-agent --key-file /path/to/claude-agent-key.pub
-   ```
+<Step>
+Register the user:
 
-3. Configure the agent with the SSH connection:
-   ```
-   Host: yourserver.com
-   User: claude-agent
-   Key: /path/to/claude-agent-key
-   ```
+```bash
+sudo podspawn add-user claude-agent --key-file /path/to/claude-agent-key.pub
+```
+</Step>
 
-4. Claude Code SSHes in and gets a container with the project environment.
+<Step>
+Configure the agent with the SSH connection:
 
-### Recommended Podfile additions for Claude Code
+```
+Host: yourserver.com
+User: claude-agent
+Key: /path/to/claude-agent-key
+```
+</Step>
+
+<Step>
+Claude Code SSHes in and gets a container with the project environment.
+</Step>
+</Steps>
+
+**Recommended Podfile additions for Claude Code:**
 
 ```yaml
 packages:
@@ -147,40 +177,61 @@ env:
   EDITOR: "cat"      # prevents interactive editor prompts
 ```
 
-## Cursor
+</Tab>
+<Tab value="Cursor">
 
 Cursor uses VS Code Remote SSH under the hood. It connects via SSH, syncs files via SFTP, and runs commands via exec channels. All of this works with podspawn.
 
-### Setup
+<Steps>
+<Step>
+Register the user:
 
-1. Register the user:
-   ```bash
-   sudo podspawn add-user cursor-agent --key-file /path/to/cursor-key.pub
-   ```
+```bash
+sudo podspawn add-user cursor-agent --key-file /path/to/cursor-key.pub
+```
+</Step>
 
-2. In Cursor's SSH config, point to the podspawn server:
-   ```
-   Host dev-env
-       HostName yourserver.com
-       User cursor-agent
-       IdentityFile /path/to/cursor-key
-   ```
+<Step>
+In Cursor's SSH config, point to the podspawn server:
 
-3. Connect via Remote SSH. Cursor installs its server-side component automatically.
+```
+Host dev-env
+    HostName yourserver.com
+    User cursor-agent
+    IdentityFile /path/to/cursor-key
+```
+</Step>
+
+<Step>
+Connect via Remote SSH. Cursor installs its server-side component automatically.
+</Step>
+</Steps>
 
 <Callout type="info">
 With `destroy-on-disconnect`, Cursor's server component will be re-installed on each connection since the container is fresh. If this is too slow for your workflow, use `grace-period` mode with a short window (e.g., `300s`) to keep the container alive between reconnects.
 </Callout>
 
-## Codex
+</Tab>
+<Tab value="Codex">
 
 OpenAI's Codex agent operates similarly. It needs SSH access and a shell.
 
-### Setup
+<Steps>
+<Step>
+Register the user and generate keys (same as Claude Code above).
+</Step>
 
-1. Register the user and generate keys (same as above)
-2. Point the Codex agent configuration at the SSH endpoint
-3. The agent SSHes in, gets a container, does its work, and exits
+<Step>
+Point the Codex agent configuration at the SSH endpoint.
+</Step>
+
+<Step>
+The agent SSHes in, gets a container, does its work, and exits.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
 
 ## Per-run isolation
 

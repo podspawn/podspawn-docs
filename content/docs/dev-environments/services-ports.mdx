@@ -27,22 +27,31 @@ Inside the container, `postgres:5432` and `redis:6379` resolve automatically via
 
 Services start when `podspawn dev` runs and stop when `podspawn down` runs. If you exit the shell, they stay alive during the grace period (same as the main container).
 
-### Named volumes
+<Accordions>
+  <Accordion title="Persisting data with named volumes">
+    Services can use named volumes to persist data across sessions:
 
-Services can use named volumes to persist data across sessions:
+    ```yaml
+    services:
+      - name: postgres
+        image: postgres:16
+        ports: [5432]
+        env:
+          POSTGRES_PASSWORD: devpass
+        volumes:
+          - pgdata:/var/lib/postgresql/data
+    ```
 
-```yaml
-services:
-  - name: postgres
-    image: postgres:16
-    ports: [5432]
-    env:
-      POSTGRES_PASSWORD: devpass
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-```
+    Volume data survives `podspawn down`. Use `podspawn down --clean` to also remove named volumes.
 
-Volume data survives `podspawn down`. Use `podspawn down --clean` to also remove named volumes.
+    This is useful for databases where you don't want to re-run migrations every time you restart, or for caches that are expensive to rebuild.
+  </Accordion>
+  <Accordion title="Multi-service networking">
+    All services and the main container share a per-user bridge network. Services can reach each other by name, not just the main container.
+
+    For example, if you have both `postgres` and `redis` services, a migration script running in the main container can connect to `postgres:5432` while a worker connects to `redis:6379` -- all by DNS name.
+  </Accordion>
+</Accordions>
 
 ## Port forwarding
 
@@ -56,11 +65,39 @@ ports:
 
 ### Strategies
 
-| Strategy | Behavior |
-|----------|----------|
-| `auto` (default) | Forward to the same host port. If taken, pick the next available and print the mapping. |
-| `manual` | Only forward ports specified via `--ports` flag. Ignore Podfile ports. |
-| `expose` | Forward to the same host port. Fail if the port is already in use. |
+<Tabs items={['auto (default)', 'manual', 'expose']}>
+  <Tab value="auto (default)">
+    Forward to the same host port. If the port is already taken, pick the next available and print the mapping.
+
+    ```yaml
+    ports:
+      expose: [3000, 8080]
+      strategy: auto
+    ```
+
+    Best for local development where you might have multiple projects running. You always get a port, even if your preferred one is busy.
+  </Tab>
+  <Tab value="manual">
+    Only forward ports specified via the `--ports` flag. Ports declared in the Podfile are ignored.
+
+    ```bash
+    podspawn dev --ports 9090,9091
+    ```
+
+    Useful when you want full control over which ports are exposed, or when running in CI where port mapping is handled externally.
+  </Tab>
+  <Tab value="expose">
+    Forward to the exact host port specified. Fail immediately if the port is already in use.
+
+    ```yaml
+    ports:
+      expose: [3000, 8080]
+      strategy: expose
+    ```
+
+    Use this when your tooling depends on specific ports (hardcoded URLs, OAuth callbacks) and a different port would break things.
+  </Tab>
+</Tabs>
 
 ### Extra ports via flag
 

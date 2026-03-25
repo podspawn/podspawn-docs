@@ -7,6 +7,17 @@ Podspawn's auth model is local-first. Keys are stored as flat files on the serve
 
 ## Local key store
 
+<Files>
+<Folder name="/etc/podspawn" defaultOpen>
+<Folder name="keys" defaultOpen>
+<File name="alice" />
+<File name="bob" />
+<File name="ci-runner" />
+</Folder>
+<File name="emergency.keys" />
+</Folder>
+</Files>
+
 Every container user has a key file at `/etc/podspawn/keys/<username>`. Each file contains one SSH public key per line, in standard `authorized_keys` format:
 
 ```
@@ -46,10 +57,12 @@ AuthorizedKeysCommandUser nobody
 
 sshd passes `%u` (username), `%t` (key type), and `%k` (key data) as arguments. The `auth-keys` subcommand in `cmd/auth_keys.go` calls `authkeys.Lookup` which:
 
-1. Rejects usernames containing `/` or `..` (path traversal protection)
-2. Opens `/etc/podspawn/keys/<username>`
-3. If the file doesn't exist, returns nothing -- zero keys, zero output
-4. For each key line, wraps it with the forced command directive and writes to stdout
+<Steps>
+<Step>Rejects usernames containing `/` or `..` (path traversal protection)</Step>
+<Step>Opens `/etc/podspawn/keys/<username>`</Step>
+<Step>If the file doesn't exist, returns nothing -- zero keys, zero output</Step>
+<Step>For each key line, wraps it with the forced command directive and writes to stdout</Step>
+</Steps>
 
 The output for each key looks like:
 

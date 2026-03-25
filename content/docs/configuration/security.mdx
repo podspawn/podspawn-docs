@@ -27,15 +27,14 @@ security:
 
 ## Fields
 
-### cap_drop
-
+<Accordions>
+<Accordion title="cap_drop">
 **Type:** `[]string`
 **Default:** `["ALL"]`
 
 Linux capabilities to drop from the container. The default drops all capabilities, which is then selectively restored by `cap_add`. This follows the principle of least privilege.
-
-### cap_add
-
+</Accordion>
+<Accordion title="cap_add">
 **Type:** `[]string`
 **Default:** `["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "NET_BIND_SERVICE"]`
 
@@ -48,9 +47,8 @@ Capabilities to add back after `cap_drop`. These are the minimum needed for typi
 | `DAC_OVERRIDE` | Bypassing file permission checks, needed for package managers that write to system directories. |
 | `FOWNER` | Modifying file attributes regardless of ownership. |
 | `NET_BIND_SERVICE` | Binding to ports below 1024 (e.g., running a dev server on port 80). |
-
-### no_new_privileges
-
+</Accordion>
+<Accordion title="no_new_privileges">
 **Type:** `bool`
 **Default:** `true`
 
@@ -59,27 +57,24 @@ When enabled, processes inside the container cannot gain new privileges via `set
 <Callout>
 Some development tools that rely on `setuid` binaries may not work with this enabled. If you hit permission errors from tools like `ping` or `sudo`, this is likely the cause. Disable it per-server only if you understand the trade-off.
 </Callout>
-
-### pids_limit
-
+</Accordion>
+<Accordion title="pids_limit">
 **Type:** `int64`
 **Default:** `256`
 
 Maximum number of processes (including threads) that can run inside the container. This prevents fork bombs and runaway process spawning.
 
 For most development workloads, 256 is sufficient. Increase this if you run build systems that spawn many parallel processes (e.g., `make -j16`).
-
-### readonly_rootfs
-
+</Accordion>
+<Accordion title="readonly_rootfs">
 **Type:** `bool`
 **Default:** `false`
 
 When `true`, the container's root filesystem is mounted read-only. Package installation and any writes to system directories will fail unless you also configure `tmpfs` mounts for writable paths.
 
 This is useful for locked-down environments where the base image is pre-built with all required tools.
-
-### tmpfs
-
+</Accordion>
+<Accordion title="tmpfs">
 **Type:** `map[string]string`
 **Default:** `{}` (empty)
 
@@ -95,9 +90,8 @@ security:
     /run: "size=64m"
     /var/tmp: "size=128m"
 ```
-
-### runtime
-
+</Accordion>
+<Accordion title="runtime">
 **Type:** `string`
 **Default:** `""` (empty, uses Docker's default runtime)
 
@@ -111,6 +105,8 @@ security:
 <Callout>
 gVisor must be installed and registered with Docker before you can use it. See the [gVisor documentation](https://gvisor.dev/docs/user_guide/install/) for setup instructions. Not all workloads are compatible with gVisor; GPU access, for instance, has limited support.
 </Callout>
+</Accordion>
+</Accordions>
 
 ## Example: locked-down server
 

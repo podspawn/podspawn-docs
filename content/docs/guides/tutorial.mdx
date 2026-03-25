@@ -5,18 +5,19 @@ description: Get a containerized dev environment in under two minutes
 
 This tutorial covers two ways to use podspawn: **local mode** (runs containers on your own machine with Docker) and **server mode** (multi-user setup on a shared Linux server via SSH). Start with local mode. Server mode is for teams.
 
----
-
-## Local mode
+<Tabs items={['Local mode', 'Server mode']}>
+<Tab value="Local mode">
 
 Local mode manages Docker containers directly. No SSH, no sshd config, no keys. You run commands, you get containers.
 
-### What you need
+**What you need:**
 
 - macOS or Linux with Docker (or OrbStack) installed and running
 - That's it
 
-### Step 1: Install podspawn
+<Steps>
+<Step>
+### Install podspawn
 
 ```bash
 curl -sSfL https://podspawn.dev/up | bash
@@ -27,8 +28,10 @@ This downloads the binary and puts it in your PATH. On macOS with OrbStack, Dock
 ```bash
 podspawn version
 ```
+</Step>
 
-### Step 2: Create a machine
+<Step>
+### Create a machine
 
 ```bash
 podspawn create dev
@@ -39,8 +42,10 @@ podspawn create dev
 ```
 
 This pulls the base image (if needed) and starts a container named `dev`. The container runs in the background with your user mapped inside it.
+</Step>
 
-### Step 3: Attach a shell
+<Step>
+### Attach a shell
 
 ```bash
 podspawn shell dev
@@ -51,8 +56,10 @@ karthik@dev:~$
 ```
 
 You drop straight into a shell. No startup output, no INFO lines. Terminal resize, colors, Ctrl-C all work. This is a Docker exec under the hood, not SSH. The container runs as your OS user (not root), and the hostname is set to the machine name.
+</Step>
 
-### Step 4: Do some work
+<Step>
+### Do some work
 
 Install packages, clone repos, run tests. The container persists until you stop it.
 
@@ -63,8 +70,10 @@ cd /workspace/repo
 ```
 
 Open a second terminal and run `podspawn shell dev` again. You land in the same container.
+</Step>
 
-### Step 5: Detach and check status
+<Step>
+### Detach and check status
 
 Type `exit` or press Ctrl-D to leave the shell. The container keeps running.
 
@@ -76,8 +85,10 @@ podspawn list
 NAME   STATUS    IMAGE          AGE
 dev    running   ubuntu:24.04   12m
 ```
+</Step>
 
-### Step 6: Stop the machine
+<Step>
+### Stop the machine
 
 ```bash
 podspawn stop dev
@@ -88,8 +99,10 @@ podspawn stop dev
 ```
 
 The container is removed. Any state inside it is gone. That's the point: environments are disposable and reproducible.
+</Step>
 
-### Step 7: Ephemeral mode with `run`
+<Step>
+### Ephemeral mode with `run`
 
 If you want a throwaway container that dies when you exit:
 
@@ -106,8 +119,10 @@ karthik@scratch:~$ exit
 You drop straight into a shell. When you exit, the container is destroyed silently. No output after exit.
 
 `run` creates a container, attaches a shell, and destroys it on exit. One command, no cleanup.
+</Step>
 
-### Step 8: Use a Podfile
+<Step>
+### Use a Podfile
 
 For a project with specific dependencies, create a `podfile.yaml`:
 
@@ -141,31 +156,36 @@ podspawn create api --podfile podfile.yaml
 ```
 
 The container comes up with Node.js installed and a PostgreSQL sidecar running on the same Docker network. When you stop the machine, the sidecar is cleaned up too.
+</Step>
+</Steps>
 
 ### What you have now
 
 A local workflow where `podspawn create` replaces hand-maintained Docker Compose files, `podspawn shell` replaces `docker exec -it`, and `podspawn run` gives you disposable scratch containers. No SSH, no configuration files, no server setup.
 
----
-
-## Server mode
+</Tab>
+<Tab value="Server mode">
 
 Server mode is for teams. One Linux server, multiple developers. Users SSH in and get isolated containers. The server admin installs podspawn once; developers connect with any SSH client.
 
-### What you need
+**What you need:**
 
 - A Linux server (Ubuntu, Debian, RHEL, Alpine) with Docker installed
 - SSH access to the server as a user with sudo
 - Developers with SSH keys (GitHub import supported)
 
-### Step 1: Install on the server
+<Steps>
+<Step>
+### Install on the server
 
 ```bash
 ssh you@devbox.company.com
 curl -sSfL https://podspawn.dev/up | bash
 ```
+</Step>
 
-### Step 2: Configure sshd
+<Step>
+### Configure sshd
 
 ```bash
 sudo podspawn server-setup
@@ -179,8 +199,10 @@ server-setup complete
 ```
 
 This adds two lines to your sshd config so that sshd calls podspawn to authenticate container users. Your existing SSH access is untouched. The operation is idempotent and rolls back on failure.
+</Step>
 
-### Step 3: Add users
+<Step>
+### Add users
 
 ```bash
 sudo podspawn add-user sarah --github sarahcodes
@@ -198,8 +220,10 @@ You can also add keys directly:
 sudo podspawn add-user sarah --key "ssh-ed25519 AAAA... sarah@laptop"
 sudo podspawn add-user sarah --key-file /tmp/sarah-id.pub
 ```
+</Step>
 
-### Step 4: Users SSH in
+<Step>
+### Users SSH in
 
 From any machine with the registered key:
 
@@ -215,8 +239,10 @@ sarah
 ```
 
 Multiple SSH sessions share the same container. When all sessions disconnect, a grace period starts. After it expires, the container is destroyed.
+</Step>
 
-### Step 5: Optional .pod namespace
+<Step>
+### Optional .pod namespace
 
 Developers can install the podspawn client on their laptops for friendly hostnames:
 
@@ -232,8 +258,10 @@ servers:
 ```
 
 Now `ssh sarah@work.pod` routes to the server, and `work` becomes the project name.
+</Step>
 
-### Step 6: Remove users
+<Step>
+### Remove users
 
 ```bash
 sudo podspawn remove-user sarah --force
@@ -244,8 +272,11 @@ removed user sarah (1 session(s) destroyed)
 ```
 
 Keys deleted, containers killed, done. No tokens to expire, no sessions to invalidate.
+</Step>
+</Steps>
 
----
+</Tab>
+</Tabs>
 
 ## Next steps
 

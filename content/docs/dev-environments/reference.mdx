@@ -84,27 +84,82 @@ workspace: /workspace/myapp
 
 ## Field reference
 
-| Field | Type | Default | Required | Merge behavior |
-|-------|------|---------|----------|---------------|
-| `base` | string | — | Yes (unless `extends` set) | Child wins |
-| `extends` | string | — | No | Resolved, then cleared |
-| `name` | string | dir basename | No | Not inherited |
-| `packages` | list | `[]` | No | Append + dedup |
-| `shell` | string | `/bin/bash` | No | Child wins |
-| `dotfiles` | object | — | No | Child replaces entirely |
-| `repos` | list | `[]` | No | Append; same-URL: child overrides branch/path |
-| `env` | map | `{}` | No | Merge; child wins on conflict; `""` removes key |
-| `services` | list | `[]` | No | Append; same-name: child replaces service |
-| `ports.expose` | list | `[]` | No | Append + dedup |
-| `ports.strategy` | string | `auto` | No | Child wins |
-| `resources.cpus` | float | — | No | Child wins if > 0 |
-| `resources.memory` | string | — | No | Child wins if non-empty |
-| `on_create` | string | — | No | Concatenate (base first) |
-| `on_start` | string | — | No | Concatenate (base first) |
-| `extra_commands` | list | `[]` | No | Append |
-| `mount` | string | `bind` | No | Child wins |
-| `mode` | string | `grace-period` | No | Child wins |
-| `workspace` | string | `/workspace/<dir>` | No | Child wins |
+<Accordions>
+  <Accordion title="Core fields: base, extends, name, shell, mount, mode, workspace">
+    <TypeTable type={{
+      base: { type: 'string', description: 'Base Docker image. Required unless extends is set.', default: '—' },
+      extends: { type: 'string', description: 'Inherit from another Podfile. Registry name, local path, or GitHub URL.', default: '—' },
+      name: { type: 'string', description: 'Session name override. Not inherited.', default: 'dir basename' },
+      shell: { type: 'string', description: 'Default shell. Must be an absolute path.', default: '/bin/bash' },
+      mount: { type: '"bind" | "copy" | "none"', description: 'How the host directory is available inside the container.', default: 'bind' },
+      mode: { type: '"grace-period" | "destroy-on-disconnect" | "persistent"', description: 'Session lifecycle mode.', default: 'grace-period' },
+      workspace: { type: 'string', description: 'Mount target inside container. Must be absolute.', default: '/workspace/<dir>' },
+    }} />
+
+    Merge behavior: all scalar fields use child-wins (child value replaces base if non-empty).
+  </Accordion>
+  <Accordion title="Packages and extra commands">
+    <TypeTable type={{
+      packages: { type: 'string[]', description: 'Packages to install. Supports version pinning (go@1.24).', default: '[]' },
+      extra_commands: { type: 'string[]', description: 'Additional Dockerfile RUN commands.', default: '[]' },
+    }} />
+
+    Merge behavior: child appends to base, duplicates removed. `"!item"` removes from base.
+  </Accordion>
+  <Accordion title="Environment variables">
+    <TypeTable type={{
+      env: { type: 'Record<string, string>', description: 'Environment variables set in the container. Supports ${PODSPAWN_USER} and ${PODSPAWN_PROJECT} expansion.', default: '{}' },
+    }} />
+
+    Merge behavior: maps are merged, child wins on key conflict. Empty value `""` removes the key from the base.
+  </Accordion>
+  <Accordion title="Services">
+    <TypeTable type={{
+      'services[].name': { type: 'string', description: 'Service name. Used as DNS hostname. Must be unique.', default: '—' },
+      'services[].image': { type: 'string', description: 'Docker image for the service.', default: '—' },
+      'services[].ports': { type: 'number[]', description: 'Ports the service exposes on the shared network.', default: '[]' },
+      'services[].env': { type: 'Record<string, string>', description: 'Environment variables for the service.', default: '{}' },
+      'services[].volumes': { type: 'string[]', description: 'Named volumes in name:/path format.', default: '[]' },
+    }} />
+
+    Merge behavior: same-name services are replaced by child. Different names are appended. `"!name"` removes.
+  </Accordion>
+  <Accordion title="Ports">
+    <TypeTable type={{
+      'ports.expose': { type: 'number[]', description: 'Ports forwarded from container to host.', default: '[]' },
+      'ports.strategy': { type: '"auto" | "manual" | "expose"', description: 'How port conflicts are handled.', default: 'auto' },
+    }} />
+
+    Merge behavior: `ports.expose` appends and deduplicates (no bang-replace support). `ports.strategy` uses child-wins.
+  </Accordion>
+  <Accordion title="Resources">
+    <TypeTable type={{
+      'resources.cpus': { type: 'float', description: 'CPU limit for the container.', default: '—' },
+      'resources.memory': { type: 'string', description: 'Memory limit (e.g., "4g", "512m").', default: '—' },
+    }} />
+
+    Merge behavior: per-field, child wins if set (cpus > 0, memory non-empty).
+  </Accordion>
+  <Accordion title="Lifecycle hooks">
+    <TypeTable type={{
+      on_create: { type: 'string', description: 'Shell commands run once on first container start. Heavy setup goes here.', default: '—' },
+      on_start: { type: 'string', description: 'Shell commands run every time you attach.', default: '—' },
+    }} />
+
+    Merge behavior: concatenated (base runs first, then child).
+  </Accordion>
+  <Accordion title="Dotfiles and repos">
+    <TypeTable type={{
+      'dotfiles.repo': { type: 'string', description: 'Git URL for your dotfiles repository.', default: '—' },
+      'dotfiles.install': { type: 'string', description: 'Install script to run after cloning dotfiles.', default: '—' },
+      'repos[].url': { type: 'string', description: 'Git URL of repo to clone. Required.', default: '—' },
+      'repos[].path': { type: 'string', description: 'Clone destination. Must be absolute.', default: '—' },
+      'repos[].branch': { type: 'string', description: 'Branch to check out.', default: 'main' },
+    }} />
+
+    Merge behavior: `dotfiles` is replaced entirely if child sets it. `repos` appends; same-URL entries have branch/path overridden by child.
+  </Accordion>
+</Accordions>
 
 ## Bang-replace fields
 
@@ -112,7 +167,9 @@ These fields support the `!` suffix to fully replace instead of merge:
 
 `packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, `on_start!`
 
-Note: `ports.expose` does not support bang-replace. Ports are always merged.
+<Callout type="info">
+`ports.expose` does not support bang-replace. Ports are always merged.
+</Callout>
 
 ## Variable expansion
 
@@ -135,13 +192,17 @@ Environment variables support these built-in variables:
 
 ## Validation rules
 
-- `base` is required unless `extends` is set
-- `shell` must be an absolute path
-- `mount` must be `bind`, `copy`, or `none`
-- `mode` must be `grace-period`, `destroy-on-disconnect`, or `persistent`
-- `ports.strategy` must be `auto`, `manual`, or `expose`
-- `workspace` must be an absolute path
-- Repo `url` is required; repo paths must be absolute
-- Service `name` and `image` are required
-- Service names must be unique
-- `"!item"` removal syntax only valid when `extends` is set
+<Accordions>
+  <Accordion title="All validation rules">
+    - `base` is required unless `extends` is set
+    - `shell` must be an absolute path
+    - `mount` must be `bind`, `copy`, or `none`
+    - `mode` must be `grace-period`, `destroy-on-disconnect`, or `persistent`
+    - `ports.strategy` must be `auto`, `manual`, or `expose`
+    - `workspace` must be an absolute path
+    - Repo `url` is required; repo paths must be absolute
+    - Service `name` and `image` are required
+    - Service names must be unique
+    - `"!item"` removal syntax only valid when `extends` is set
+  </Accordion>
+</Accordions>

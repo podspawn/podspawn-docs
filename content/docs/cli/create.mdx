@@ -19,28 +19,41 @@ podspawn create <name> [--image IMAGE]
 
 ## Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--image` | (from config) | Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`. |
+<Accordions>
+<Accordion title="--image">
+**Default:** `(from config)`
+
+Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`.
+</Accordion>
+</Accordions>
 
 ## Examples
 
+<Tabs items={['Basic', 'Advanced']}>
+<Tab value="Basic">
 ```bash
 # Create a machine with the default image
 $ podspawn create dev
 ✓ Creating dev (ubuntu:24.04)
-
+```
+</Tab>
+<Tab value="Advanced">
+```bash
 # Create a machine with a specific image
 $ podspawn create dev --image alpine:3.20
 ✓ Creating dev (alpine:3.20)
 ```
+</Tab>
+</Tabs>
 
 ## What happens
 
-1. Pulls the image if not already cached locally
-2. Creates a container with `sleep infinity` as the entrypoint to keep it alive
-3. Creates a non-root user inside the container (UID 1000, home at `/home/<username>`, passwordless sudo)
-4. Registers the machine in the state database
+<Steps>
+<Step>Pulls the image if not already cached locally</Step>
+<Step>Creates a container with `sleep infinity` as the entrypoint to keep it alive</Step>
+<Step>Creates a non-root user inside the container (UID 1000, home at `/home/<username>`, passwordless sudo)</Step>
+<Step>Registers the machine in the state database</Step>
+</Steps>
 
 The container runs as your OS username, not root. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 

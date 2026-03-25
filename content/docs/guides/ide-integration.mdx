@@ -9,29 +9,45 @@ Podspawn containers are standard Docker containers, so they work with IDE remote
 
 In local mode, podspawn containers are regular Docker containers on your machine. You can use them with any tool that talks to Docker.
 
-### VS Code Dev Containers
+<Tabs items={['VS Code', 'JetBrains', 'Cursor']}>
+<Tab value="VS Code">
 
 The [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension can attach to a running podspawn container:
 
-1. Create a container: `podspawn create dev`
-2. In VS Code, open the Command Palette and select **Dev Containers: Attach to Running Container**
-3. Select the podspawn container (it will be named `dev` or whatever you passed to `create`)
+<Steps>
+<Step>
+Create a container: `podspawn create dev`
+</Step>
+<Step>
+In VS Code, open the Command Palette and select **Dev Containers: Attach to Running Container**.
+</Step>
+<Step>
+Select the podspawn container (it will be named `dev` or whatever you passed to `create`).
+</Step>
+</Steps>
 
 You get the full VS Code experience: terminal, file explorer, extensions, port forwarding, all running inside the container.
 
 Alternatively, use `podspawn shell dev` from any terminal (including VS Code's integrated terminal) for a direct shell.
 
-### JetBrains and Cursor
+</Tab>
+<Tab value="JetBrains">
 
-JetBrains Gateway and Cursor can also attach to local Docker containers. Use the Docker connection type instead of SSH.
+JetBrains Gateway can attach to local Docker containers. Use the Docker connection type instead of SSH.
+
+</Tab>
+<Tab value="Cursor">
+
+Cursor can also attach to local Docker containers. Use the Docker connection type instead of SSH.
+
+</Tab>
+</Tabs>
 
 ---
 
 ## Server mode
 
 In server mode, podspawn provides a real SSH connection to a Linux container on a shared server. Remote IDE features work without any special integration because the IDE connects via SSH, syncs files via SFTP, runs commands via exec channels, and forwards ports. Podspawn handles all of this through the standard session router.
-
-### How IDEs use SSH
 
 All remote IDEs follow the same pattern:
 
@@ -41,26 +57,35 @@ All remote IDEs follow the same pattern:
 
 Podspawn's session router handles each of these as separate SSH sessions to the same container. The connection reference count tracks them all, so the container stays alive as long as the IDE has any active connection.
 
-## VS Code Remote SSH
+<Tabs items={['VS Code Remote SSH', 'JetBrains Gateway', 'Cursor Remote']}>
+<Tab value="VS Code Remote SSH">
 
 VS Code Remote SSH is fully supported. No special configuration needed.
 
-### Setup
+<Steps>
+<Step>
+Install the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh) extension in VS Code.
+</Step>
 
-1. Install the [Remote - SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh) extension in VS Code.
+<Step>
+Add the host to your SSH config. If you've run `podspawn setup`, the `.pod` namespace is already configured. Otherwise, add the server directly:
 
-2. Add the host to your SSH config. If you've run `podspawn setup`, the `.pod` namespace is already configured. Otherwise, add the server directly:
+```
+Host dev-container
+    HostName yourserver.com
+    User alice
+    IdentityFile ~/.ssh/id_ed25519
+```
+</Step>
 
-   ```
-   Host dev-container
-       HostName yourserver.com
-       User alice
-       IdentityFile ~/.ssh/id_ed25519
-   ```
+<Step>
+Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), select **Remote-SSH: Connect to Host**, and choose your host.
+</Step>
 
-3. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`), select **Remote-SSH: Connect to Host**, and choose your host.
-
-4. VS Code connects, installs its server component inside the container, and opens a remote window.
+<Step>
+VS Code connects, installs its server component inside the container, and opens a remote window.
+</Step>
+</Steps>
 
 ### Using the .pod namespace
 
@@ -92,22 +117,31 @@ If you disconnect and reconnect within the grace period (default: 60s), VS Code 
 If you use `destroy-on-disconnect` mode (for CI or agent workflows), VS Code's server component will be reinstalled on every connection. For interactive development, use `grace-period` mode.
 </Callout>
 
-## JetBrains Gateway
+</Tab>
+<Tab value="JetBrains Gateway">
 
 JetBrains Gateway connects to remote environments via SSH and runs a headless IDE backend inside the container.
 
-### Setup
+<Steps>
+<Step>
+Open JetBrains Gateway and select **SSH Connection**.
+</Step>
 
-1. Open JetBrains Gateway and select **SSH Connection**.
+<Step>
+Configure the connection:
+- **Host**: `yourserver.com` (or `backend.pod` if using the `.pod` namespace)
+- **User**: `alice`
+- **Authentication**: Key-based, pointing to your SSH key
+</Step>
 
-2. Configure the connection:
-   - **Host**: `yourserver.com` (or `backend.pod` if using the `.pod` namespace)
-   - **User**: `alice`
-   - **Authentication**: Key-based, pointing to your SSH key
+<Step>
+Gateway connects and offers to install the IDE backend (IntelliJ, GoLand, PyCharm, etc.) inside the container.
+</Step>
 
-3. Gateway connects and offers to install the IDE backend (IntelliJ, GoLand, PyCharm, etc.) inside the container.
-
-4. The IDE backend runs inside the container. The Gateway client on your machine renders the UI.
+<Step>
+The IDE backend runs inside the container. The Gateway client on your machine renders the UI.
+</Step>
+</Steps>
 
 ### How it works with podspawn
 
@@ -145,23 +179,33 @@ GoLand (via Gateway) connects, finds Go and gopls installed, and provides full I
 
 JetBrains Gateway stores IDE settings and indexes inside the container. If the container is destroyed, these are rebuilt on next connection. For faster reconnects, use `grace-period` mode.
 
-## Cursor Remote
+</Tab>
+<Tab value="Cursor Remote">
 
 Cursor is a fork of VS Code with AI features built in. Its remote SSH integration works identically to VS Code Remote SSH.
 
-### Setup
+<Steps>
+<Step>
+Open Cursor's Command Palette and select **Remote-SSH: Connect to Host**.
+</Step>
 
-1. Open Cursor's Command Palette and select **Remote-SSH: Connect to Host**.
+<Step>
+If you've run `podspawn setup`, connect to `alice@work.pod` directly.
+</Step>
 
-2. If you've run `podspawn setup`, connect to `alice@work.pod` directly.
-
-3. Cursor connects, installs its server component, and opens a remote window with full AI features.
+<Step>
+Cursor connects, installs its server component, and opens a remote window with full AI features.
+</Step>
+</Steps>
 
 ### Cursor-specific considerations
 
 Cursor's AI features (autocomplete, chat, edits) run partially on the server side. The container needs network access for Cursor's AI backend communication. The default podspawn network configuration allows outbound connections, so this works without changes.
 
 If you've restricted outbound network access, ensure the container can reach Cursor's API endpoints.
+
+</Tab>
+</Tabs>
 
 ## Feature support matrix
 

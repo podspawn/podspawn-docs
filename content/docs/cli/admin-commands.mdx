@@ -5,6 +5,10 @@ description: CLI reference for podspawn machine management and monitoring comman
 
 These commands manage machines and monitor system health. `list`, `stop`, and `doctor` work in both local and server mode. The rest (`cleanup`, `status`, etc.) are server-side administration commands.
 
+<Callout type="warn">
+`stop`, `remove-user --force`, and `remove-project` are destructive operations that immediately destroy containers. Connected sessions will be terminated and unsaved work lost.
+</Callout>
+
 ## list
 
 Lists all machines (local mode) or active sessions (server mode) tracked in the state database.
@@ -82,10 +86,12 @@ The argument is interpreted differently depending on mode:
 
 ### What it destroys
 
-1. The session's Docker container
-2. All companion service containers (postgres, redis, etc.)
-3. The per-user Docker network
-4. The session record in the state database
+<Steps>
+<Step>The session's Docker container</Step>
+<Step>All companion service containers (postgres, redis, etc.)</Step>
+<Step>The per-user Docker network</Step>
+<Step>The session record in the state database</Step>
+</Steps>
 
 ### Examples
 
@@ -135,11 +141,17 @@ podspawn cleanup [flags]
 
 ### What each cleanup pass does
 
-1. **Expire grace periods** -- finds sessions in `grace_period` status past their expiry time and destroys them
-2. **Enforce max lifetimes** -- finds sessions that have exceeded their configured max lifetime and destroys them (regardless of active connections)
-3. **Reconcile orphans** -- finds Docker containers labeled `managed-by=podspawn` that have no corresponding database record and removes them
-
-Grace periods are processed first so that max-lifetime enforcement doesn't attempt to destroy the same session twice.
+<Accordions>
+<Accordion title="Expire grace periods">
+Finds sessions in `grace_period` status past their expiry time and destroys them. Grace periods are processed first so that max-lifetime enforcement doesn't attempt to destroy the same session twice.
+</Accordion>
+<Accordion title="Enforce max lifetimes">
+Finds sessions that have exceeded their configured max lifetime and destroys them, regardless of active connections.
+</Accordion>
+<Accordion title="Reconcile orphans">
+Finds Docker containers labeled `managed-by=podspawn` that have no corresponding database record and removes them.
+</Accordion>
+</Accordions>
 
 ### Examples
 
@@ -158,23 +170,24 @@ podspawn cleanup --daemon --interval 30s
 
 Podspawn ships systemd units in the deb/rpm packages. You can also use them manually:
 
-**Option A: Persistent daemon (recommended)**
-
+<Tabs items={['Persistent daemon (recommended)', 'Timer-based (alternative)']}>
+<Tab value="Persistent daemon (recommended)">
 ```bash
 # Shipped at /etc/systemd/system/podspawn-cleanup.service
 sudo systemctl enable --now podspawn-cleanup.service
 ```
 
 This runs `podspawn cleanup --daemon --interval 60s` as a long-lived process.
-
-**Option B: Timer-based (alternative)**
-
+</Tab>
+<Tab value="Timer-based (alternative)">
 ```bash
 # Shipped at /etc/systemd/system/podspawn-cleanup.timer
 sudo systemctl enable --now podspawn-cleanup.timer
 ```
 
 This runs a single cleanup pass every 60 seconds via systemd's timer infrastructure.
+</Tab>
+</Tabs>
 
 <Callout type="info">
 The cleanup command is not in the critical path. The system works without it, just with slightly delayed cleanup. Orphaned containers from crashes will be caught on the next pass.
@@ -285,12 +298,14 @@ podspawn remove-user <username> [flags]
 
 ### Behavior
 
-1. Checks the user exists in `/etc/podspawn/keys/`
-2. If the user has active sessions and `--force` is not set, returns an error
-3. With `--force`, destroys all active sessions (containers, services, networks)
-4. Removes the key file
-5. With `--purge`, removes the user's persistent home directory at `<homes_dir>/<username>`
-6. Without `--purge`, prints a notice if a persistent home directory exists so you can decide whether to keep it
+<Steps>
+<Step>Checks the user exists in `/etc/podspawn/keys/`</Step>
+<Step>If the user has active sessions and `--force` is not set, returns an error</Step>
+<Step>With `--force`, destroys all active sessions (containers, services, networks)</Step>
+<Step>Removes the key file</Step>
+<Step>With `--purge`, removes the user's persistent home directory at `<homes_dir>/<username>`</Step>
+<Step>Without `--purge`, prints a notice if a persistent home directory exists so you can decide whether to keep it</Step>
+</Steps>
 
 ### Examples
 
@@ -328,10 +343,18 @@ podspawn doctor
 
 ### Adaptive checks
 
-| Mode | When | Checks |
-|------|------|--------|
-| **Local** | `/etc/podspawn/config.yaml` does not exist | Docker daemon, Docker socket, state directory, lock directory, disk space, default image (6 checks) |
-| **Server** | `/etc/podspawn/config.yaml` exists | All local checks plus OpenSSH version, sshd config, AuthorizedKeysCommand, podspawn config dir, key directory (11 checks) |
+<Tabs items={['Local mode (6 checks)', 'Server mode (11 checks)']}>
+<Tab value="Local mode (6 checks)">
+Runs when `/etc/podspawn/config.yaml` does not exist.
+
+Checks: Docker daemon, Docker socket, state directory, lock directory, disk space, default image.
+</Tab>
+<Tab value="Server mode (11 checks)">
+Runs when `/etc/podspawn/config.yaml` exists.
+
+All local checks plus: OpenSSH version, sshd config, AuthorizedKeysCommand, podspawn config dir, key directory.
+</Tab>
+</Tabs>
 
 ### Local mode output
 
@@ -374,7 +397,8 @@ podspawn doctor
 
 ### Checks
 
-#### Docker daemon
+<Accordions>
+<Accordion title="Docker daemon">
 
 Runs `docker info` and verifies the Docker daemon is reachable and responds within 5 seconds.
 
@@ -384,8 +408,8 @@ Runs `docker info` and verifies the Docker daemon is reachable and responds with
 | fail | Docker is not running, not installed, or not in `PATH` |
 
 **Fix:** Install Docker and ensure the daemon is running (`systemctl start docker`).
-
-#### Docker socket
+</Accordion>
+<Accordion title="Docker socket">
 
 Checks that `/var/run/docker.sock` exists and has appropriate permissions.
 
@@ -396,8 +420,8 @@ Checks that `/var/run/docker.sock` exists and has appropriate permissions.
 | fail | Socket does not exist |
 
 **Fix:** If the socket is missing, start Docker. If permissions are wrong, add the podspawn user to the `docker` group (`usermod -aG docker <user>`).
-
-#### OpenSSH version (server only)
+</Accordion>
+<Accordion title="OpenSSH version (server only)">
 
 Detects the installed OpenSSH version by running `sshd -V` (falling back to `ssh -V`).
 
@@ -407,8 +431,8 @@ Detects the installed OpenSSH version by running `sshd -V` (falling back to `ssh
 | fail | Neither `sshd` nor `ssh` found |
 
 **Fix:** Install `openssh-server`. Podspawn requires OpenSSH 7.4+ for the `restrict` keyword in authorized_keys.
-
-#### sshd config valid (server only)
+</Accordion>
+<Accordion title="sshd config valid (server only)">
 
 Runs `sshd -t` to validate the current sshd configuration file.
 
@@ -418,8 +442,8 @@ Runs `sshd -t` to validate the current sshd configuration file.
 | fail | `sshd -t` reported errors |
 
 **Fix:** Check the sshd_config syntax errors reported by `sshd -t` and correct them. Common causes: duplicate directives, invalid keywords, bad `Match` blocks.
-
-#### AuthorizedKeysCommand (server only)
+</Accordion>
+<Accordion title="AuthorizedKeysCommand (server only)">
 
 Reads the sshd_config file and checks for an `AuthorizedKeysCommand` directive that references `podspawn`.
 
@@ -434,8 +458,8 @@ Reads the sshd_config file and checks for an `AuthorizedKeysCommand` directive t
 AuthorizedKeysCommand /usr/local/bin/podspawn auth-keys %u %t %k
 AuthorizedKeysCommandUser nobody
 ```
-
-#### podspawn config dir (server only)
+</Accordion>
+<Accordion title="podspawn config dir (server only)">
 
 Checks that `/etc/podspawn` exists and is a directory.
 
@@ -445,8 +469,8 @@ Checks that `/etc/podspawn` exists and is a directory.
 | fail | Missing or not a directory |
 
 **Fix:** Run `podspawn server-setup`, which creates all required directories.
-
-#### key directory (server only)
+</Accordion>
+<Accordion title="key directory (server only)">
 
 Checks that the key directory (`/etc/podspawn/keys/` by default) exists and has permissions set to `0755`.
 
@@ -466,8 +490,8 @@ sudo chmod 755 /etc/podspawn/keys
 <Callout type="info">
 The key directory must be readable by the `AuthorizedKeysCommandUser` (typically `nobody`). sshd rejects the command if it cannot traverse the directory. Individual key files contain public keys only, so read access is not a security concern.
 </Callout>
-
-#### state directory
+</Accordion>
+<Accordion title="state directory">
 
 Checks that `/var/lib/podspawn` exists and is writable. The check creates and removes a temporary file to verify write access.
 
@@ -482,8 +506,8 @@ Checks that `/var/lib/podspawn` exists and is writable. The check creates and re
 sudo mkdir -p /var/lib/podspawn
 sudo chown root:root /var/lib/podspawn
 ```
-
-#### lock directory
+</Accordion>
+<Accordion title="lock directory">
 
 Checks that `/var/lib/podspawn/locks/` exists and is a directory. This directory holds per-user file locks that prevent race conditions during container creation.
 
@@ -493,8 +517,8 @@ Checks that `/var/lib/podspawn/locks/` exists and is a directory. This directory
 | fail | Missing or not a directory |
 
 **Fix:** `sudo mkdir -p /var/lib/podspawn/locks`
-
-#### disk space
+</Accordion>
+<Accordion title="disk space">
 
 Checks free disk space on the partition containing `/var/lib/podspawn` (falls back to `/` if that path does not exist).
 
@@ -505,8 +529,8 @@ Checks free disk space on the partition containing `/var/lib/podspawn` (falls ba
 | fail | Less than 1 GB free |
 
 **Fix:** Free up disk space. Docker images are typically the biggest consumer. Run `docker system prune` or `docker image prune -a` to remove unused images.
-
-#### default image
+</Accordion>
+<Accordion title="default image">
 
 Checks whether the configured default image (e.g., `ubuntu:24.04`) is already cached locally in Docker.
 
@@ -516,6 +540,8 @@ Checks whether the configured default image (e.g., `ubuntu:24.04`) is already ca
 | warn | Image is not cached; the first connection for a user without a Podfile will trigger a pull, which can take 30+ seconds |
 
 **Fix:** Pre-pull the image: `docker pull ubuntu:24.04`
+</Accordion>
+</Accordions>
 
 ---
 

@@ -42,9 +42,18 @@ services:
 | `env`     | `map[string]string` | no       | Environment variables passed to the service container at startup. |
 | `volumes` | `[]string`          | no       | Volume mounts in `source:target` format. See [Volumes](#volumes). |
 
-## DNS discovery
+## Network topology
 
 All containers in a session share a Docker network. The `name` field is registered as a network alias on that network, which means Docker's embedded DNS resolves the service name to the container's IP address.
+
+<Files>
+  <Folder name="podspawn-alice-myproject (network)" defaultOpen>
+    <File name="dev (main container)" />
+    <File name="postgres" />
+    <File name="redis" />
+    <File name="rabbitmq" />
+  </Folder>
+</Files>
 
 From inside your development container:
 
@@ -133,8 +142,8 @@ docker rm -f $(docker ps -aq --filter label=managed-by=podspawn)
 
 The `volumes` field accepts strings in `source:target` format. The source determines the volume type.
 
-### Named volumes
-
+<Accordions>
+<Accordion title="Named volumes">
 If the source does not start with `/`, Docker treats it as a named volume:
 
 ```yaml
@@ -143,9 +152,9 @@ volumes:
 ```
 
 Docker creates a named volume called `pgdata` (or reuses it if it already exists). Named volumes persist across container restarts within the same session. When the session is destroyed, the containers and their associated volumes are removed.
+</Accordion>
 
-### Host mounts
-
+<Accordion title="Host mounts">
 If the source starts with `/`, Docker treats it as a bind mount from the host filesystem:
 
 ```yaml
@@ -154,9 +163,9 @@ volumes:
 ```
 
 Host mounts persist across sessions because the data lives on the host, not inside Docker. Use these when you need data to survive session destruction.
+</Accordion>
 
-### Malformed volume specs
-
+<Accordion title="Malformed volume specs">
 Volume strings that don't contain a `:` separator are skipped with a warning. Always use the `source:target` format.
 
 ```yaml
@@ -168,6 +177,8 @@ volumes:
 volumes:
   - pgdata:/var/lib/postgresql/data
 ```
+</Accordion>
+</Accordions>
 
 ## Examples
 

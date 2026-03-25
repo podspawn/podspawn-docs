@@ -5,6 +5,13 @@ description: Reference for ~/.podspawn/config.yaml, covering local defaults and 
 
 The client configuration file lives at `~/.podspawn/config.yaml`. In local mode, it stores container defaults. In client mode, it tells the podspawn CLI how to resolve `.pod` hostnames to real server addresses.
 
+<Files>
+<Folder name="~/.podspawn" defaultOpen>
+<File name="config.yaml" />
+<File name="podfile.yaml" />
+</Folder>
+</Files>
+
 ## Local mode
 
 The setup wizard (run by `curl -sSfL https://podspawn.dev/up | bash`) generates a `local` section with your container defaults. You can also create or edit this file by hand.
@@ -88,10 +95,12 @@ servers:
 
 When you run `podspawn connect myproject.pod`, the client resolves the hostname in this order:
 
-1. If the hostname does not end in `.pod`, it passes through unchanged (treated as a direct address).
-2. If `servers.mappings` contains an exact match for the hostname, that server address is used.
-3. Otherwise, `servers.default` is used as the fallback.
-4. If neither a mapping nor a default exists, the connection fails with an error.
+<Steps>
+<Step>If the hostname does not end in `.pod`, it passes through unchanged (treated as a direct address).</Step>
+<Step>If `servers.mappings` contains an exact match for the hostname, that server address is used.</Step>
+<Step>Otherwise, `servers.default` is used as the fallback.</Step>
+<Step>If neither a mapping nor a default exists, the connection fails with an error.</Step>
+</Steps>
 
 <Callout>
 The `.pod` suffix is what triggers routing. Plain hostnames like `192.168.1.50` or `my-server.example.org` bypass the resolution logic entirely.

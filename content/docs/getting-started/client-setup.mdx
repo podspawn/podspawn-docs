@@ -23,7 +23,11 @@ ssh alice@gpu.pod
 
 The `.pod` suffix is not a real TLD -- it never hits DNS. Your SSH client's `ProxyCommand` intercepts it before resolution and routes to the real server.
 
-## Automatic setup
+## Setup
+
+<Steps>
+<Step>
+### Install the client binary
 
 ```bash
 podspawn setup
@@ -51,32 +55,19 @@ $ podspawn setup
 `setup` creates `~/.ssh/` and `~/.ssh/config` if they don't exist. It appends to the file -- it never overwrites existing config.
 </Callout>
 
-## Manual setup
+After running `setup`, your SSH directory looks like this:
 
-If you don't want to install the client binary, add this to `~/.ssh/config` yourself:
+<Files>
+  <Folder name="~/.ssh" defaultOpen>
+    <File name="config" />
+    <File name="id_ed25519" />
+    <File name="id_ed25519.pub" />
+  </Folder>
+</Files>
+</Step>
 
-```bash
-Host *.pod
-    ProxyCommand podspawn connect %r %h %p
-    SetEnv PODSPAWN_PROJECT=%n
-    SendEnv PODSPAWN_PROJECT
-    UserKnownHostsFile /dev/null
-    StrictHostKeyChecking no
-```
-
-You still need the `podspawn` binary in your `PATH` for the `ProxyCommand` to work.
-
-### Without the client binary at all
-
-Skip the `.pod` namespace entirely and SSH directly:
-
-```bash
-ssh alice@devbox.company.com
-```
-
-All SSH features work. You lose the friendly hostnames and multi-server routing, but nothing else.
-
-## Client configuration
+<Step>
+### Configure server routing
 
 Create `~/.podspawn/config.yaml` to tell the `connect` command which server backs each `.pod` hostname:
 
@@ -88,6 +79,51 @@ servers:
     gpu.pod: gpu-server.company.com
     personal.pod: my-homelab.ddns.net
 ```
+
+<Files>
+  <Folder name="~/.podspawn" defaultOpen>
+    <File name="config.yaml" />
+  </Folder>
+</Files>
+</Step>
+
+<Step>
+### Connect
+
+```bash
+ssh alice@work.pod
+```
+</Step>
+</Steps>
+
+<Accordions>
+<Accordion title="Manual setup (without podspawn setup)">
+If you don't want to run `podspawn setup`, add this to `~/.ssh/config` yourself:
+
+```bash
+Host *.pod
+    ProxyCommand podspawn connect %r %h %p
+    SetEnv PODSPAWN_PROJECT=%n
+    SendEnv PODSPAWN_PROJECT
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+```
+
+You still need the `podspawn` binary in your `PATH` for the `ProxyCommand` to work.
+</Accordion>
+
+<Accordion title="Without the client binary at all">
+Skip the `.pod` namespace entirely and SSH directly:
+
+```bash
+ssh alice@devbox.company.com
+```
+
+All SSH features work. You lose the friendly hostnames and multi-server routing, but nothing else.
+</Accordion>
+</Accordions>
+
+## Client configuration
 
 Mappings can also use an object format to include the server's session mode. This is purely informational on the client side (the server controls the actual behavior), but it shows up in `podspawn servers` output so you know which servers persist your files:
 

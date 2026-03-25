@@ -19,13 +19,19 @@ The fastest path. No root, no SSH, no sshd configuration. Just Docker and the bi
 
 ### Interactive install
 
+<Steps>
+<Step>
+### Run the install script
+
 ```bash
 curl -sSfL https://podspawn.dev/up | bash
 ```
 
 Choose **Local** when prompted. The script installs the binary, verifies Docker is reachable, and runs an optional setup wizard.
+</Step>
 
-#### Setup wizard
+<Step>
+### Complete the setup wizard
 
 The wizard is all menu-based (no typing required). It asks:
 
@@ -41,37 +47,48 @@ Based on your choices, it generates two files:
 - `~/.podspawn/podfile.yaml` -- a default Podfile with packages and services matching your picks
 
 Hit Enter at each prompt to accept the defaults (Ubuntu 24.04, bash, no database). You can skip the wizard entirely by answering "n" when asked "Set up now?".
+</Step>
 
-<Callout type="info">
-You can edit these files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
-</Callout>
-
-### Manual install
-
-```bash
-# Homebrew (macOS/Linux)
-brew install podspawn/tap/podspawn
-
-# Or download the binary directly
-curl -sSfL https://podspawn.dev/install.sh | sh
-
-# Or from source
-go install github.com/podspawn/podspawn@latest
-```
-
-### Requirements
-
-- Docker running locally (OrbStack, Docker Desktop, or Colima all work)
-- No root access needed
-- No SSH setup needed
-
-### Try it
+<Step>
+### Start using podspawn
 
 ```bash
 podspawn create dev          # create a persistent machine
 podspawn shell dev           # drop into a shell
 podspawn run scratch         # one-shot throwaway container
 ```
+</Step>
+</Steps>
+
+<Callout type="info">
+You can edit the generated config files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
+</Callout>
+
+### Manual install
+
+<Tabs items={['Homebrew (macOS/Linux)', 'Direct download', 'From source']}>
+<Tab value="Homebrew (macOS/Linux)">
+```bash
+brew install podspawn/tap/podspawn
+```
+</Tab>
+<Tab value="Direct download">
+```bash
+curl -sSfL https://podspawn.dev/install.sh | sh
+```
+</Tab>
+<Tab value="From source">
+```bash
+go install github.com/podspawn/podspawn@latest
+```
+</Tab>
+</Tabs>
+
+### Requirements
+
+- Docker running locally (OrbStack, Docker Desktop, or Colima all work)
+- No root access needed
+- No SSH setup needed
 
 <Callout type="info">
 Local mode talks to Docker directly. There's no sshd involved, no key management, no network configuration. If `docker ps` works, podspawn works.
@@ -99,46 +116,65 @@ Choose **Server** when prompted. The script will:
 
 ### Manual install
 
-#### Step 1: Install the binary
+<Steps>
+<Step>
+### Install the binary
 
+<Tabs items={['Direct download', 'Debian/Ubuntu (.deb)', 'RHEL/Fedora (.rpm)']}>
+<Tab value="Direct download">
 ```bash
 curl -sSfL https://podspawn.dev/install.sh | sh
 ```
-
-Or via package manager:
-
+</Tab>
+<Tab value="Debian/Ubuntu (.deb)">
 ```bash
-# Debian/Ubuntu (.deb)
 # Download from GitHub releases:
 # https://github.com/podspawn/podspawn/releases
 sudo dpkg -i podspawn_*.deb
-
-# RHEL/Fedora (.rpm)
+```
+</Tab>
+<Tab value="RHEL/Fedora (.rpm)">
+```bash
 sudo rpm -i podspawn_*.rpm
 ```
+</Tab>
+</Tabs>
+</Step>
 
-#### Step 2: Configure sshd
+<Step>
+### Configure sshd
 
 ```bash
 sudo podspawn server-setup
 ```
 
 This appends `AuthorizedKeysCommand` to `/etc/ssh/sshd_config`, creates directories, and reloads sshd. Idempotent, safe to run multiple times.
+</Step>
 
-#### Step 3: Register a user
+<Step>
+### Register a user
 
+<Tabs items={['From GitHub', 'From key file', 'Paste directly']}>
+<Tab value="From GitHub">
 ```bash
-# Import keys from GitHub
 sudo podspawn add-user alice --github alice
-
-# Or from a local key file
+```
+</Tab>
+<Tab value="From key file">
+```bash
 sudo podspawn add-user alice --key-file ~/.ssh/id_ed25519.pub
-
-# Or paste a key directly
+```
+</Tab>
+<Tab value="Paste directly">
+```bash
 sudo podspawn add-user alice --key "ssh-ed25519 AAAA... alice@laptop"
 ```
+</Tab>
+</Tabs>
+</Step>
 
-#### Step 4: Verify
+<Step>
+### Verify
 
 ```bash
 sudo podspawn doctor
@@ -147,14 +183,18 @@ sudo podspawn doctor
 Since `server-setup` has been run, doctor runs all 11 checks: Docker, sshd, keys, permissions, disk space, and image cache. Fix any failures before proceeding.
 
 By default, containers are ephemeral (destroyed after a grace period). Set `session.mode: persistent` in the server config or per-user overrides for workspaces where files survive across sessions. See [Session Lifecycle](/docs/concepts/session-lifecycle) for details.
+</Step>
 
-#### Step 5: Test
+<Step>
+### Test
 
 ```bash
 ssh alice@localhost
 ```
 
 You should land in a container. Type `exit` to leave.
+</Step>
+</Steps>
 
 ### Requirements
 
@@ -258,35 +298,62 @@ podspawn update --check
 
 ## What gets installed
 
-### All modes
+<Tabs items={['All modes', 'Local mode', 'Server mode', 'Client mode']}>
+<Tab value="All modes">
+<Files>
+  <Folder name="usr" defaultOpen>
+    <Folder name="local" defaultOpen>
+      <Folder name="bin" defaultOpen>
+        <File name="podspawn" />
+      </Folder>
+    </Folder>
+  </Folder>
+</Files>
+</Tab>
+<Tab value="Local mode">
+Created by the setup wizard:
 
-| Path | Purpose |
-|---|---|
-| `/usr/local/bin/podspawn` | Single binary |
+<Files>
+  <Folder name="~/.podspawn" defaultOpen>
+    <File name="config.yaml" />
+    <File name="podfile.yaml" />
+  </Folder>
+</Files>
 
-### Local mode (created by setup wizard)
+- **config.yaml** -- local defaults (image, shell, resources, lifecycle)
+- **podfile.yaml** -- default Podfile (packages, services from wizard choices)
+</Tab>
+<Tab value="Server mode">
+Created by `server-setup`:
 
-| Path | Purpose |
-|---|---|
-| `~/.podspawn/config.yaml` | Local defaults (image, shell, resources, lifecycle) |
-| `~/.podspawn/podfile.yaml` | Default Podfile (packages, services from wizard choices) |
+<Files>
+  <Folder name="/etc/podspawn" defaultOpen>
+    <Folder name="keys" />
+    <File name="config.yaml" />
+    <File name="emergency.keys" />
+  </Folder>
+  <Folder name="/var/lib/podspawn" defaultOpen>
+    <File name="state.db" />
+    <Folder name="locks" />
+  </Folder>
+</Files>
+</Tab>
+<Tab value="Client mode">
+Created by `setup`:
 
-### Server mode (created by `server-setup`)
+<Files>
+  <Folder name="~/.ssh" defaultOpen>
+    <File name="config" />
+  </Folder>
+  <Folder name="~/.podspawn" defaultOpen>
+    <File name="config.yaml" />
+  </Folder>
+</Files>
 
-| Path | Purpose |
-|---|---|
-| `/etc/podspawn/` | Server config directory |
-| `/etc/podspawn/keys/` | Per-user SSH public key store |
-| `/etc/podspawn/config.yaml` | Server configuration |
-| `/etc/podspawn/emergency.keys` | Break-glass access keys |
-| `/var/lib/podspawn/` | State directory (SQLite database, lock files) |
-
-### Client mode (created by `setup`)
-
-| Path | Purpose |
-|---|---|
-| `~/.ssh/config` | `.pod` namespace block (appended) |
-| `~/.podspawn/config.yaml` | Server routing configuration |
+- **~/.ssh/config** -- `.pod` namespace block (appended)
+- **~/.podspawn/config.yaml** -- server routing configuration
+</Tab>
+</Tabs>
 
 ---
 

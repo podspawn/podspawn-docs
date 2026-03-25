@@ -21,6 +21,18 @@ This separation means:
 
 When you run `podspawn create`, podspawn searches for a Podfile in the following order, relative to the project directory:
 
+<Files>
+  <Folder name="your-project" defaultOpen>
+    <Folder name=".podspawn" defaultOpen>
+      <File name="podfile.yaml" />
+    </Folder>
+    <File name="podfile.yaml" />
+  </Folder>
+  <Folder name="~/.podspawn" defaultOpen>
+    <File name="podfile.yaml" />
+  </Folder>
+</Files>
+
 | Priority | Path | Use case |
 |----------|------|----------|
 | 1 | `.podspawn/podfile.yaml` | Project-level config, tucked into a dotdir |
@@ -257,7 +269,9 @@ When podspawn processes a Podfile, it follows this pipeline:
 podfile.yaml → Parse → Generate Dockerfile → docker build → Container
 ```
 
-### Step 1: Parse and validate
+<Steps>
+<Step>
+### Parse and validate
 
 The YAML is decoded, defaults are applied (`shell` defaults to `/bin/bash`, `repos[].branch` defaults to `main`), and validation runs. Validation rejects:
 
@@ -267,8 +281,10 @@ The YAML is decoded, defaults are applied (`shell` defaults to `/bin/bash`, `rep
 - Repos with empty `url` or non-absolute `path`
 - Services with missing `name` or `image`
 - Duplicate service names
+</Step>
 
-### Step 2: Generate Dockerfile
+<Step>
+### Generate Dockerfile
 
 Podspawn translates the Podfile into a Dockerfile. The generated Dockerfile follows this structure:
 
@@ -282,8 +298,10 @@ Podspawn translates the Podfile into a Dockerfile. The generated Dockerfile foll
 8. `RUN` blocks for each `extra_commands` entry
 
 Only fields that affect the image are included in the Dockerfile. Runtime concerns -- dotfiles, repos, services, lifecycle hooks -- are handled after the container is created.
+</Step>
 
-### Step 3: Content-addressed caching
+<Step>
+### Content-addressed caching
 
 Before building, podspawn computes a content-addressed tag from the raw Podfile bytes:
 
@@ -300,6 +318,8 @@ If an image with that tag already exists locally, the build is skipped entirely.
 - **The cache key is the entire Podfile**, not individual fields. There is no partial invalidation.
 
 This is a deliberate trade-off: simplicity over granularity. Rebuilds are fast because Docker's own layer cache handles most of the work.
+</Step>
+</Steps>
 
 ### What is not in the image
 
@@ -350,8 +370,8 @@ Podspawn validates every Podfile before building. The following rules are enforc
 
 Validation happens at parse time, before any Docker operations. If validation fails, nothing is built and the error message tells you exactly what is wrong.
 
-## devcontainer fallback
-
+<Accordions>
+<Accordion title="devcontainer.json fallback">
 If no Podfile is found, podspawn searches for a `devcontainer.json` in two locations:
 
 1. `.devcontainer/devcontainer.json`
@@ -372,6 +392,8 @@ This conversion is lossy. Devcontainer features, build configs, and Docker Compo
 <Callout type="info">
 The devcontainer.json parser handles JSONC (JSON with comments), so files with `//` or `/* */` comments work without modification.
 </Callout>
+</Accordion>
+</Accordions>
 
 ## Example Podfiles
 

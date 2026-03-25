@@ -17,11 +17,39 @@ This inherits everything from the `ubuntu-dev` base (git, curl, ripgrep, fzf, ne
 
 ## Resolution order
 
-The `extends` value is resolved in this order:
+The `extends` value is resolved by trying each source in order until one matches:
 
-1. **Local file path** -- `extends: ./base/podfile.yaml` or `extends: /absolute/path.yaml`
-2. **Registry shorthand** -- `extends: ubuntu-dev` looks up in the embedded registry, then in cached bases
-3. **GitHub URL** -- `extends: github.com/myorg/bases/go-base.yaml` fetches from GitHub
+<Tabs items={['Local file path', 'Registry shorthand', 'GitHub URL']}>
+  <Tab value="Local file path">
+    Relative or absolute paths to a YAML file on disk.
+
+    ```yaml
+    extends: ./base/podfile.yaml
+    extends: /absolute/path.yaml
+    ```
+
+    Checked first. Use this for monorepos or local base files that live alongside your project.
+  </Tab>
+  <Tab value="Registry shorthand">
+    A short name that maps to a base in the embedded registry or cached bases.
+
+    ```yaml
+    extends: ubuntu-dev
+    extends: minimal
+    ```
+
+    Podspawn checks embedded bases first, then `~/.podspawn/cache/podfiles/`. Run `podspawn init --update` to refresh cached bases.
+  </Tab>
+  <Tab value="GitHub URL">
+    A full path to a YAML file hosted on GitHub.
+
+    ```yaml
+    extends: github.com/myorg/podfiles/go-base.yaml
+    ```
+
+    Fetched over HTTPS and cached locally. Useful for org-wide bases shared across many repos.
+  </Tab>
+</Tabs>
 
 ### Available bases
 
@@ -73,41 +101,44 @@ shell: /bin/zsh
 on_create: go mod download
 ```
 
-## Bang-replace syntax
+<Accordions>
+  <Accordion title="Bang-replace syntax: replacing entire fields">
+    To fully replace a base field instead of merging, use the `!` suffix on the YAML key:
 
-To fully replace a base field instead of merging, use the `!` suffix on the YAML key:
+    ```yaml
+    extends: ubuntu-dev
+    packages!: [only-this-package]
+    env!:
+      CLEAN: slate
+    on_create!: |
+      completely-replace-base-hooks
+    ```
 
-```yaml
-extends: ubuntu-dev
-packages!: [only-this-package]
-env!:
-  CLEAN: slate
-on_create!: |
-  completely-replace-base-hooks
-```
+    This works for `packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, and `on_start!`.
 
-This works for `packages!`, `env!`, `services!`, `repos!`, `extra_commands!`, `on_create!`, and `on_start!`.
+    Without the `!` suffix, these fields would merge with the base. With it, the base values are discarded entirely.
+  </Accordion>
+  <Accordion title="Item-level removal: removing specific entries">
+    Remove specific items from a base list by prefixing with `!` (quoted):
 
-## Item-level removal
+    ```yaml
+    extends: ubuntu-dev
+    packages:
+      - "!neovim"
+      - "!htop"
+      - go@1.24
+    ```
 
-Remove specific items from a base list by prefixing with `!` (quoted):
+    Result: everything from ubuntu-dev except neovim and htop, plus go. The `!` prefix must be quoted because `!` is special in YAML.
 
-```yaml
-extends: ubuntu-dev
-packages:
-  - "!neovim"
-  - "!htop"
-  - go@1.24
-```
+    Same pattern works for services (by name) and repos (by URL):
 
-Result: everything from ubuntu-dev except neovim and htop, plus go. The `!` prefix must be quoted because `!` is special in YAML.
-
-Same pattern works for services (by name) and repos (by URL):
-
-```yaml
-services:
-  - name: "!redis"
-```
+    ```yaml
+    services:
+      - name: "!redis"
+    ```
+  </Accordion>
+</Accordions>
 
 ## Multi-level extends
 

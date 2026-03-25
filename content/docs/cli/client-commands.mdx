@@ -15,7 +15,14 @@ Configures `~/.ssh/config` with the `Host *.pod` block that wires up podspawn's 
 podspawn setup
 ```
 
-### What it writes
+### What it does
+
+<Steps>
+<Step>
+Creates `~/.ssh/` directory and `~/.ssh/config` if they don't exist
+</Step>
+<Step>
+Appends the `Host *.pod` block to `~/.ssh/config`:
 
 ```
 Host *.pod
@@ -25,8 +32,21 @@ Host *.pod
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking no
 ```
+</Step>
+<Step>
+Skips if the block already exists (idempotent)
+</Step>
+</Steps>
 
 `SetEnv`/`SendEnv` pass the `.pod` hostname to the server for project routing. `UserKnownHostsFile /dev/null` and `StrictHostKeyChecking no` exist because `.pod` hostnames are virtual, they all resolve to real servers whose host keys you already trust.
+
+### Files modified
+
+<Files>
+<Folder name="~/.ssh" defaultOpen>
+<File name="config" />
+</Folder>
+</Files>
 
 ### Examples
 
@@ -303,12 +323,14 @@ podspawn connect <user> <host> <port>
 
 ### Resolution logic
 
-1. If the host does not end in `.pod`, connect directly (passthrough)
-2. `localhost.pod` always resolves to `127.0.0.1` without reading any config
-3. For other `.pod` hosts, load `~/.podspawn/config.yaml`
-4. Look up the host in `servers.mappings` for a direct match
-5. Fall back to `servers.default` if no mapping exists
-6. Open a TCP connection (10-second timeout) and relay stdin/stdout bidirectionally
+<Steps>
+<Step>If the host does not end in `.pod`, connect directly (passthrough)</Step>
+<Step>`localhost.pod` always resolves to `127.0.0.1` without reading any config</Step>
+<Step>For other `.pod` hosts, load `~/.podspawn/config.yaml`</Step>
+<Step>Look up the host in `servers.mappings` for a direct match</Step>
+<Step>Fall back to `servers.default` if no mapping exists</Step>
+<Step>Open a TCP connection (10-second timeout) and relay stdin/stdout bidirectionally</Step>
+</Steps>
 
 ### Resolution examples
 

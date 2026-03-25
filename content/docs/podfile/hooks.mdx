@@ -32,6 +32,8 @@ Every podspawn container follows this sequence. Understanding it is key to writi
 
 Steps 6-8 only run once, when the container is first created. The `on_start` hook runs on every connection, including the first.
 
+<Tabs items={['on_create', 'on_start']}>
+<Tab value="on_create">
 ## on_create
 
 Runs once per container, after dotfiles and repos are cloned, before `on_start`. Use it for one-time setup: installing project dependencies, running database migrations, compiling assets, seeding data.
@@ -44,7 +46,9 @@ on_create: |
 ```
 
 If the container already exists when you connect, `on_create` does not run again. To re-run it, destroy and recreate the container.
+</Tab>
 
+<Tab value="on_start">
 ## on_start
 
 Runs on every connection, including the first. Use it for tasks that should happen each time: starting background services, printing a status banner, refreshing tokens.
@@ -56,6 +60,8 @@ on_start: |
 ```
 
 On the first connection, `on_start` runs immediately after `on_create`. On subsequent connections (reattach), it runs before the shell opens.
+</Tab>
+</Tabs>
 
 ## Execution context
 
@@ -188,12 +194,20 @@ Each entry becomes a separate `RUN` line in the Dockerfile, after package instal
 
 The distinction matters:
 
-| | `extra_commands` | `on_create` |
-|---|---|---|
-| **When** | Image build time | Container start (first connection) |
-| **Runs as** | root | Non-root user (sudo available) |
-| **Cached** | Yes, in Docker layer cache | No, runs every time a new container is created |
-| **Use for** | System packages, native libraries, build tools | Project dependencies, database setup, migrations |
+<Tabs items={['extra_commands', 'on_create']}>
+<Tab value="extra_commands">
+- **When:** Image build time
+- **Runs as:** root
+- **Cached:** Yes, in Docker layer cache
+- **Use for:** System packages, native libraries, build tools
+</Tab>
+<Tab value="on_create">
+- **When:** Container start (first connection)
+- **Runs as:** Non-root user (sudo available)
+- **Cached:** No, runs every time a new container is created
+- **Use for:** Project dependencies, database setup, migrations
+</Tab>
+</Tabs>
 
 ## Error handling
 

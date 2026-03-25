@@ -137,18 +137,32 @@ Without `port-forwarding` after `restrict`, sshd would deny all forwarding reque
 
 Containers are created with the `sleep infinity` command and all interaction happens via `docker exec`. The container itself does not expose any ports to the host -- there is no `-p` flag in the container creation. Network access flows through two paths:
 
-1. **Intra-session** -- containers on the same per-user network communicate directly via Docker DNS
-2. **External access** -- SSH port forwarding tunnels through sshd to reach container services
+<Files>
+<Folder name="podspawn-alice-work-net" defaultOpen>
+<File name="podspawn-alice-work (dev container)" />
+<File name="postgres (companion)" />
+<File name="redis (companion)" />
+</Folder>
+<Folder name="podspawn-bob-work-net" defaultOpen>
+<File name="podspawn-bob-work (dev container)" />
+<File name="postgres (companion)" />
+</Folder>
+</Files>
 
-This means no container ports are exposed on the host's network interfaces. The only way to reach a service inside a container is through an authenticated SSH session.
+- **Intra-session** -- containers on the same per-user network communicate directly via Docker DNS
+- **External access** -- SSH port forwarding tunnels through sshd to reach container services
+
+No container ports are exposed on the host's network interfaces. The only way to reach a service inside a container is through an authenticated SSH session.
 
 ## Network cleanup
 
 When a session is destroyed, `cleanupSessionResources` in `internal/spawn/spawn.go` handles network teardown:
 
-1. Remove the dev container (force)
-2. Stop and remove companion service containers via `podfile.StopServices`
-3. Remove the Docker network via `Runtime.RemoveNetwork`
+<Steps>
+<Step>Remove the dev container (force)</Step>
+<Step>Stop and remove companion service containers via `podfile.StopServices`</Step>
+<Step>Remove the Docker network via `Runtime.RemoveNetwork`</Step>
+</Steps>
 
 If the network cannot be removed (containers still attached), the next `spawn` invocation's reconciliation or the cleanup daemon will retry. Docker also garbage-collects networks with no connected containers.
 

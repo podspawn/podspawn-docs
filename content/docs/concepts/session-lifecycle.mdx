@@ -257,9 +257,11 @@ If any step fails, the next `spawn` invocation's reconciliation catches the orph
 
 When podspawn determines which session mode to use, it checks three levels of configuration in order, with later levels overriding earlier ones:
 
-1. **Server default** -- `session.mode` in `/etc/podspawn/config.yaml`
-2. **User override** -- `session.mode` in `/etc/podspawn/users/<username>.yaml`
-3. **Project config** -- `session.mode` in the project's Podfile
+<Steps>
+<Step>**Server default** -- `session.mode` in `/etc/podspawn/config.yaml`</Step>
+<Step>**User override** -- `session.mode` in `/etc/podspawn/users/<username>.yaml`</Step>
+<Step>**Project config** -- `session.mode` in the project's Podfile (highest priority)</Step>
+</Steps>
 
 This means a server admin can set `destroy-on-disconnect` as the default, while a specific user can override to `persistent` for their own sessions, and a specific project can override further if needed.
 
@@ -275,8 +277,23 @@ session:
 
 ## Session modes summary
 
-| Mode | Grace period | Max lifetime | Home bind mount | Use case |
-|---|---|---|---|---|
-| `grace-period` (default) | Configurable, default 60s | Enforced, default 8h | No | Human developers -- survives network blips |
-| `destroy-on-disconnect` | Zero | Enforced, default 8h | No | CI, AI agents -- immediate cleanup, no billing surprises |
-| `persistent` | None, container stays alive | Exempt | Yes, from `/var/lib/podspawn/homes/<user>/` | Long-lived dev environments -- files survive container recreation |
+<Tabs items={['grace-period (default)', 'destroy-on-disconnect', 'persistent']}>
+<Tab value="grace-period (default)">
+- **Grace period:** Configurable, default 60s
+- **Max lifetime:** Enforced, default 8h
+- **Home bind mount:** No
+- **Use case:** Human developers. Survives network blips, accidental disconnects, and SSH reconnects.
+</Tab>
+<Tab value="destroy-on-disconnect">
+- **Grace period:** Zero
+- **Max lifetime:** Enforced, default 8h
+- **Home bind mount:** No
+- **Use case:** CI, AI agents. Immediate cleanup, no billing surprises.
+</Tab>
+<Tab value="persistent">
+- **Grace period:** None, container stays alive
+- **Max lifetime:** Exempt
+- **Home bind mount:** Yes, from `/var/lib/podspawn/homes/<user>/`
+- **Use case:** Long-lived dev environments. Files survive container recreation.
+</Tab>
+</Tabs>

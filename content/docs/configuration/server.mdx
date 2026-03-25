@@ -5,8 +5,37 @@ description: Reference for /etc/podspawn/config.yaml, covering authentication, d
 
 The server configuration file lives at `/etc/podspawn/config.yaml`. If the file does not exist, podspawn uses built-in defaults for every field. Partial configs are fine; only the fields you specify override the defaults.
 
-## Full example
+## Config file layout
 
+<Files>
+<Folder name="/etc/podspawn" defaultOpen>
+<File name="config.yaml" />
+<File name="projects.yaml" />
+<Folder name="keys">
+<File name="alice" />
+</Folder>
+<Folder name="users">
+<File name="alice.yaml" />
+</Folder>
+</Folder>
+</Files>
+
+## Example
+
+<Tabs items={['Minimal', 'Full']}>
+<Tab value="Minimal">
+A minimal config that only overrides what you care about. Everything else uses built-in defaults.
+
+```yaml
+defaults:
+  image: ubuntu:24.04
+
+session:
+  mode: grace-period
+  grace_period: 5m
+```
+</Tab>
+<Tab value="Full">
 ```yaml
 auth:
   key_dir: /etc/podspawn/keys
@@ -53,6 +82,8 @@ resources:
 
 projects_file: /etc/podspawn/projects.yaml
 ```
+</Tab>
+</Tabs>
 
 ## auth
 

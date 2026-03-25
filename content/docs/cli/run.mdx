@@ -27,20 +27,29 @@ podspawn run <name> [--image IMAGE]
 
 ## Examples
 
+<Tabs items={['Basic', 'Advanced']}>
+<Tab value="Basic">
 ```bash
 # Spin up a throwaway machine
 $ podspawn run scratch
-
+```
+</Tab>
+<Tab value="Advanced">
+```bash
 # Use a specific image
 $ podspawn run test --image node:22
 ```
+</Tab>
+</Tabs>
 
 ## What happens
 
-1. Pulls the image if not already cached locally
-2. Creates a container with a non-root user (UID 1000, home at `/home/<username>`, passwordless sudo)
-3. Attaches an interactive shell as that user
-4. When you disconnect (exit the shell or close the terminal), the container is destroyed
+<Steps>
+<Step>Pulls the image if not already cached locally</Step>
+<Step>Creates a container with a non-root user (UID 1000, home at `/home/<username>`, passwordless sudo)</Step>
+<Step>Attaches an interactive shell as that user</Step>
+<Step>When you disconnect (exit the shell or close the terminal), the container is destroyed</Step>
+</Steps>
 
 No state is persisted after disconnect. If you need a machine that survives disconnects, use `podspawn create` instead.
 

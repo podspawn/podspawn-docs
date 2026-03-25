@@ -3,19 +3,16 @@ title: Quick Start
 description: From zero to a dev container in under a minute
 ---
 
-## Local mode (laptop/desktop)
-
+<Tabs items={['Local mode', 'Server mode']}>
+<Tab value="Local mode">
 Three commands. No server, no SSH, no configuration.
 
+<Steps>
+<Step>
+### Install podspawn
+
 ```bash
-# Install (includes an optional setup wizard)
 curl -sSfL https://podspawn.dev/up | bash
-
-# Create a container
-podspawn create dev
-
-# Get a shell
-podspawn shell dev
 ```
 
 The installer runs a setup wizard that asks about your use case, shell, base image, and services. Every question is a numbered menu, so there's nothing to type. Hit Enter at each prompt to accept the defaults, or answer "n" to skip the wizard entirely.
@@ -26,46 +23,76 @@ The wizard creates two files:
 - **`~/.podspawn/podfile.yaml`** -- a starting Podfile with packages and services
 
 You can edit these files anytime. See the [Podfile reference](/docs/podfile/overview) for all options.
+</Step>
 
-You're inside a container as a non-root user with passwordless sudo. The prompt shows `username@machinename`. Do your work, then exit. The container keeps running until you stop it:
+<Step>
+### Create a container
+
+```bash
+podspawn create dev
+```
+</Step>
+
+<Step>
+### Get a shell
+
+```bash
+podspawn shell dev
+```
+
+You're inside a container as a non-root user with passwordless sudo. The prompt shows `username@machinename`. Do your work, then exit.
+</Step>
+
+<Step>
+### Explore
 
 ```bash
 podspawn list     # see what's running
-podspawn stop dev # destroy the container
+podspawn run scratch  # one-shot throwaway container
 ```
+</Step>
 
-Want a throwaway container that dies when you exit?
+<Step>
+### Stop the container
 
 ```bash
-podspawn run scratch
+podspawn stop dev
 ```
+</Step>
+</Steps>
 
 That's local mode. For the full walkthrough, see the [Tutorial](/docs/guides/tutorial).
+</Tab>
 
----
-
-## Server mode (multi-user)
-
+<Tab value="Server mode">
 For teams sharing a Linux server. Three commands on the server, then users SSH in.
 
+<Steps>
+<Step>
+### Install and configure the server
+
 ```bash
-# On the server
 curl -sSfL https://podspawn.dev/up | bash
 sudo podspawn server-setup
 sudo podspawn add-user alice --github alice
 ```
+</Step>
+
+<Step>
+### Connect from any machine
 
 ```bash
-# From any machine with the registered key
 ssh alice@yourserver.com
 ```
 
 Alice lands in a container as a non-root user (`alice@yourserver:~$`). SFTP, port forwarding, and agent forwarding all work because sshd handles the protocol.
+</Step>
+</Steps>
 
 For the full server walkthrough, see the [Tutorial](/docs/guides/tutorial#server-mode).
 
-### Persistent mode
-
+<Accordions>
+<Accordion title="Persistent mode">
 By default, containers are destroyed after a grace period when the user disconnects. To keep files across container restarts, set the session mode to `persistent` in the server config or a per-user override:
 
 ```yaml
@@ -79,6 +106,10 @@ session:
 ```
 
 In persistent mode, the user's `/home/<user>` directory is bind-mounted from the host. Files written there survive container restarts. The container itself is still recreated on each connection, but the home directory carries over.
+</Accordion>
+</Accordions>
+</Tab>
+</Tabs>
 
 ---
 

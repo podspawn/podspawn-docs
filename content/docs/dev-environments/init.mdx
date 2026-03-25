@@ -7,22 +7,38 @@ description: Auto-detect your project type and generate a starter Podfile.
 
 ## Basic usage
 
-```bash
-cd your-project
-podspawn init
-```
+<Steps>
+  <Step>
+    ### Run init in your project
 
-Output:
-```
-Detected: Go project (go.mod found)
-Base image? [ubuntu:24.04]
-Packages? [go@1.24, make]
-Add services? (postgres/redis/none) [none]
-Expose ports? [8080]
-Created podfile.yaml
+    ```bash
+    cd your-project
+    podspawn init
+    ```
+  </Step>
+  <Step>
+    ### Answer the prompts
 
-Run 'podspawn dev' to start.
-```
+    Podspawn detects your project type and asks a few questions:
+
+    ```
+    Detected: Go project (go.mod found)
+    Base image? [ubuntu:24.04]
+    Packages? [go@1.24, make]
+    Add services? (postgres/redis/none) [none]
+    Expose ports? [8080]
+    ```
+  </Step>
+  <Step>
+    ### Start developing
+
+    ```bash
+    podspawn dev
+    ```
+
+    The generated `podfile.yaml` is ready to use immediately.
+  </Step>
+</Steps>
 
 ## How detection works
 
@@ -55,7 +71,59 @@ Skip detection entirely:
 podspawn init --template python
 ```
 
-Available templates: `go`, `node`, `python`, `rust`, `fullstack`, `minimal`.
+## Template previews
+
+<Tabs items={['Go', 'Node.js', 'Python', 'Rust', 'Fullstack', 'Minimal']}>
+  <Tab value="Go">
+```yaml
+extends: ubuntu-dev
+packages: [go@1.24, make]
+on_create: go mod download
+```
+  </Tab>
+  <Tab value="Node.js">
+```yaml
+extends: ubuntu-dev
+packages: [nodejs@22]
+ports:
+  expose: [3000]
+on_create: npm install
+```
+  </Tab>
+  <Tab value="Python">
+```yaml
+extends: ubuntu-dev
+packages: [python@3.13]
+on_create: |
+  pip install uv
+  uv sync
+```
+  </Tab>
+  <Tab value="Rust">
+```yaml
+extends: ubuntu-dev
+packages: [rust]
+on_create: cargo fetch
+```
+  </Tab>
+  <Tab value="Fullstack">
+```yaml
+extends: ubuntu-dev
+packages: [go@1.24, nodejs@22, make]
+ports:
+  expose: [3000, 8080]
+on_create: |
+  go mod download
+  npm install
+```
+  </Tab>
+  <Tab value="Minimal">
+```yaml
+base: ubuntu:24.04
+packages: [git, curl]
+```
+  </Tab>
+</Tabs>
 
 ## Fetching latest templates
 
