@@ -7,23 +7,56 @@ description: Clone a repo, run one command, get a full dev environment.
 
 ## The flow
 
+<Steps>
+<Step>
+### Clone and enter
+
 ```bash
 git clone github.com/yourorg/yourproject
 cd yourproject
+```
+</Step>
+<Step>
+### Start the environment
+
+```bash
 podspawn dev
 ```
 
-That's it. Podspawn reads the Podfile, builds a cached image, starts companion services (postgres, redis, etc.), bind-mounts your code into the container, and drops you into a shell.
+Podspawn reads the Podfile, builds a cached image, starts companion services, bind-mounts your code, and drops you into a shell.
+</Step>
+<Step>
+### Work
+
+You're inside the container with all tools, services, and your code at `/workspace`. When you're done, exit the shell or run `podspawn down`.
+</Step>
+</Steps>
 
 ## What happens under the hood
 
-1. **Find Podfile** -- podspawn looks for `.podspawn/podfile.yaml`, then `podfile.yaml`, then falls back to `.devcontainer/devcontainer.json` if no Podfile exists
-2. **Resolve extends** -- if the Podfile uses `extends:`, the base is loaded and merged
-3. **Build image** -- a Docker image is built from the merged Podfile (cached by content hash, so rebuilds only happen when the Podfile changes)
-4. **Start services** -- companion containers (databases, caches) are created on a shared network
-5. **Mount workspace** -- your local directory is bind-mounted into the container at `/workspace/<dirname>`
-6. **Run hooks** -- `on_create` runs once on first start, `on_start` runs on every attach
-7. **Open shell** -- you're dropped into the container's shell, in your workspace directory
+<Steps>
+<Step>
+**Find Podfile** -- looks for `.podspawn/podfile.yaml`, then `podfile.yaml`, then falls back to `.devcontainer/devcontainer.json`
+</Step>
+<Step>
+**Resolve extends** -- if the Podfile uses `extends:`, the base is loaded and merged
+</Step>
+<Step>
+**Build image** -- a Docker image is built from the merged Podfile (cached by content hash, so rebuilds only happen when the Podfile changes)
+</Step>
+<Step>
+**Start services** -- companion containers (databases, caches) are created on a shared network
+</Step>
+<Step>
+**Mount workspace** -- your local directory is bind-mounted into the container at `/workspace/<dirname>`
+</Step>
+<Step>
+**Run hooks** -- `on_create` runs once on first start, `on_start` runs on every attach
+</Step>
+<Step>
+**Open shell** -- you're dropped into the container's shell, in your workspace directory
+</Step>
+</Steps>
 
 ## Running commands
 
@@ -37,43 +70,49 @@ podspawn dev -- npm run lint
 
 The command runs inside the Podfile environment and exits.
 
-## Re-attaching
+## Lifecycle
 
+<Accordions>
+<Accordion title="Re-attaching to an existing session">
 If you exit the shell, the container stays alive for a grace period. Running `podspawn dev` again re-attaches instantly without rebuilding.
 
 <Callout type="info">
 The grace period is configured by the server (default 30 seconds). Use `--ephemeral` to destroy the container immediately on exit instead.
 </Callout>
+</Accordion>
 
-## Stopping
-
+<Accordion title="Stopping and cleanup">
 ```bash
 podspawn down                      # stop container and services
 podspawn down --clean              # also remove named volumes (postgres data, etc.)
 podspawn down --name myapp-a3f8    # target a specific session
 ```
+</Accordion>
 
-## Pre-building
-
+<Accordion title="Pre-building for faster startup">
 For faster startup, pre-build the image so `podspawn dev` skips the build step:
 
 ```bash
 podspawn prebuild                  # build image from CWD podfile
 podspawn prebuild --tag myimg:v1   # custom tag for CI
 ```
+</Accordion>
+</Accordions>
 
 ## Flags
 
-| Flag | Description |
-|------|-------------|
-| `--ephemeral` | Destroy container on exit |
-| `--dotfiles` | Apply your personal dotfiles from `~/.podspawn/config.yaml` |
-| `--name <name>` | Override the session name (default: derived from directory) |
-| `--fresh` | Destroy any existing session and start clean |
-| `--ports 9090,9091` | Forward additional ports beyond what the Podfile declares |
-| `--podfile <path>` | Use a specific Podfile instead of auto-detecting |
+<TypeTable
+  type={{
+    '--ephemeral': { type: 'boolean', description: 'Destroy container on exit' },
+    '--dotfiles': { type: 'boolean', description: 'Apply your personal dotfiles from ~/.podspawn/config.yaml' },
+    '--name': { type: 'string', description: 'Override the session name (default: derived from directory)' },
+    '--fresh': { type: 'boolean', description: 'Destroy any existing session and start clean' },
+    '--ports': { type: 'string', description: 'Forward additional ports (e.g. 9090,9091)' },
+    '--podfile': { type: 'string', description: 'Use a specific Podfile instead of auto-detecting' },
+  }}
+/>
 
-## No Podfile? No problem
+## No Podfile?
 
 If no Podfile exists, run `podspawn init` to scaffold one:
 
