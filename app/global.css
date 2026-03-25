@@ -11,6 +11,116 @@
   --color-fd-article: oklch(0.978 0.005 40);
 }
 
+/* Mermaid diagram styling — orange accent on dark backgrounds */
+.dark svg.flowchart .node rect,
+.dark svg.flowchart .node circle,
+.dark svg.flowchart .node polygon,
+.dark svg.statediagram .node rect,
+.dark svg.statediagram .statediagram-state rect.basic {
+  fill: #2a1a0a !important;
+  stroke: #DF3F00 !important;
+  stroke-width: 1.5px !important;
+}
+
+.dark svg.flowchart .node .nodeLabel,
+.dark svg.statediagram .nodeLabel {
+  color: #f0f0f0 !important;
+  fill: #f0f0f0 !important;
+}
+
+.dark svg.flowchart .edgePath .path,
+.dark svg.flowchart .flowchart-link,
+.dark svg.statediagram .transition {
+  stroke: #DF3F00 !important;
+  stroke-width: 1.5px !important;
+}
+
+.dark svg.flowchart .edgeLabel,
+.dark svg.statediagram .transitionLabel {
+  color: #ddd !important;
+  fill: #ddd !important;
+}
+
+.dark svg.flowchart marker path,
+.dark svg.statediagram marker path {
+  fill: #DF3F00 !important;
+  stroke: #DF3F00 !important;
+}
+
+.dark svg.flowchart .cluster rect {
+  fill: #1a0a00 !important;
+  stroke: #DF3F00 !important;
+  stroke-width: 1px !important;
+  stroke-dasharray: 5 4 !important;
+}
+
+.dark svg.flowchart .cluster-label .nodeLabel {
+  color: #DF3F00 !important;
+  fill: #DF3F00 !important;
+}
+
+/* Decision diamonds — slightly different fill */
+.dark svg.flowchart .node polygon {
+  fill: #1a0a00 !important;
+}
+
+/* Sequence diagram */
+.dark svg.sequenceDiagram .actor,
+.dark svg[class*="sequence"] rect.actor {
+  fill: #2a1a0a !important;
+  stroke: #DF3F00 !important;
+}
+
+.dark svg[class*="sequence"] .actor-line {
+  stroke: #555 !important;
+}
+
+.dark svg[class*="sequence"] .messageLine0,
+.dark svg[class*="sequence"] .messageLine1 {
+  stroke: #DF3F00 !important;
+}
+
+.dark svg[class*="sequence"] text.messageText {
+  fill: #ddd !important;
+}
+
+.dark svg[class*="sequence"] text.actor-text {
+  fill: #f0f0f0 !important;
+}
+
+/* State diagram start/end markers */
+.dark svg.statediagram .start-state,
+.dark svg.statediagram circle {
+  fill: #DF3F00 !important;
+  stroke: #DF3F00 !important;
+}
+
+/* Edge label backgrounds — the gray boxes behind transition text */
+.dark svg .edgeLabel {
+  background-color: transparent !important;
+}
+
+.dark svg .edgeLabel rect,
+.dark svg .label rect {
+  fill: #1a1a1a !important;
+  stroke: none !important;
+}
+
+.dark svg .edgeLabel span,
+.dark svg .edgeLabel p {
+  color: #ddd !important;
+  background: transparent !important;
+}
+
+/* State diagram transition labels specifically */
+.dark svg.statediagram .edgeLabel {
+  background-color: transparent !important;
+}
+
+.dark svg.statediagram text {
+  fill: #e0e0e0 !important;
+}
+
 .dark {
   --color-fd-primary: oklch(0.7404 0.1853 35.9003);
   --color-fd-primary-foreground: oklch(1 0 0);
