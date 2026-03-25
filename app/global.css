@@ -123,18 +123,18 @@
 }
 
 .dark svg .edgeLabel rect {
-  fill: #2d2d2d !important;
-  stroke: #444 !important;
-  stroke-width: 0.5px !important;
+  fill: none !important;
+  stroke: #555 !important;
+  stroke-width: 1px !important;
   rx: 8 !important;
   ry: 8 !important;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)) !important;
 }
 
 .dark svg .edgeLabel span,
 .dark svg .edgeLabel p {
   color: #e0e0e0 !important;
   background: transparent !important;
-  padding: 0 6px !important;
 }
 
 /* State diagram transition labels specifically */
