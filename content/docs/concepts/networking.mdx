@@ -42,14 +42,18 @@ graph TB
 
 Docker's default bridge network allows all containers to communicate by IP. On a multi-tenant podspawn server, this means alice's container could reach bob's postgres. Per-user networks prevent this:
 
-```
-podspawn-alice-work-net          podspawn-bob-work-net
-+---------------------------+    +---------------------------+
-| alice's dev container     |    | bob's dev container       |
-| alice's postgres          |    | bob's postgres            |
-| alice's redis             |    | bob's redis               |
-+---------------------------+    +---------------------------+
-        (isolated)                       (isolated)
+```mermaid
+graph LR
+    subgraph "podspawn-alice-net (isolated)"
+        A1["alice's container"]
+        A2["alice's postgres"]
+        A3["alice's redis"]
+    end
+    subgraph "podspawn-bob-net (isolated)"
+        B1["bob's container"]
+        B2["bob's postgres"]
+        B3["bob's redis"]
+    end
 ```
 
 Containers on different networks cannot reach each other at the Docker networking level. No firewall rules needed.

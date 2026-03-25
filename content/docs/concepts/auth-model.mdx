@@ -110,17 +110,14 @@ This is an explicit allowlist -- any new SSH feature added in the future is disa
 
 The key design constraint: podspawn must never interfere with normal system users. The mechanism is simple:
 
-```
-sshd calls: podspawn auth-keys bob
-    |
-    v
-/etc/podspawn/keys/bob exists?
-    +-- NO  --> return nothing (empty stdout, exit 0)
-    |           sshd falls through to ~/.ssh/authorized_keys
-    |           bob logs in normally, no container
-    |
-    +-- YES --> return keys with command= directive
-                sshd matches key, forces podspawn spawn
+```mermaid
+flowchart TD
+    A["sshd calls: podspawn auth-keys bob"] --> B{"/etc/podspawn/keys/bob exists?"}
+    B -->|No| C["Return nothing (exit 0)"]
+    C --> D["sshd falls through to normal auth"]
+    D --> E["bob logs in normally, no container"]
+    B -->|Yes| F["Return keys with command= directive"]
+    F --> G["sshd matches key, forces podspawn spawn"]
 ```
 
 `authkeys.Lookup` returns 0 keys and `nil` error when the key file doesn't exist. sshd treats empty output from `AuthorizedKeysCommand` as "no keys found" and proceeds with its normal authentication chain: `AuthorizedKeysFile`, then password auth if enabled.

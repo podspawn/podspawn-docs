@@ -90,35 +90,23 @@ PRAGMA busy_timeout=5000;
 
 When `podspawn spawn` runs, `ensureContainerWithState` in `internal/spawn/spawn.go` executes under an exclusive per-user file lock:
 
-```
-podspawn spawn --user alice --project work
-    |
-    v
-Acquire flock: /var/lib/podspawn/locks/alice.lock
-    |
-    v
-Reconcile stale state (crash recovery)
-    |
-    v
-Session exists in DB?
-    |
-    +-- YES, container alive?
-    |       +-- YES, in grace period?
-    |       |       +-- YES --> cancel grace period, increment connections
-    |       |       +-- NO  --> increment connections
-    |       +-- NO  --> delete stale session record, fall through
-    |
-    +-- NO --> create network, resolve project/podfile, create container,
-              start container, insert session record
-    |
-    v
-Release lock
-    |
-    v
-Run hooks (on_create for new, on_start for all)
-    |
-    v
-Route session (interactive shell / SFTP / command)
+```mermaid
+flowchart TD
+    A["podspawn spawn --user alice"] --> B["Acquire file lock"]
+    B --> C["Reconcile stale state"]
+    C --> D{"Session in DB?"}
+    D -->|Yes| E{"Container alive?"}
+    E -->|Yes| F{"In grace period?"}
+    F -->|Yes| G["Cancel grace, increment connections"]
+    F -->|No| H["Increment connections"]
+    E -->|No| I["Delete stale record"]
+    I --> J
+    D -->|No| J["Create network + container"]
+    G --> K["Release lock"]
+    H --> K
+    J --> K
+    K --> L["Run hooks"]
+    L --> M["Route session"]
 ```
 
 The file lock at `/var/lib/podspawn/locks/<username>.lock` prevents the check-then-create race: two SSH sessions arriving simultaneously for the same user both see "no container" and both try to create one. The lock serializes them so the second session reattaches to the container the first one created.
@@ -151,28 +139,16 @@ The `MAX(0, ...)` guard prevents the count from going negative if something goes
 
 `Session.Disconnect` in `internal/spawn/spawn.go` handles teardown:
 
-```
-User exits SSH session
-    |
-    v
-Acquire flock
-    |
-    v
-Decrement connections
-    |
-    v
-connections > 0?
-    +-- YES --> done, other sessions still active
-    +-- NO  --> check mode
-                |
-                +-- destroy-on-disconnect (or grace_period = 0)
-                |       --> remove container + services + network, delete session
-                |
-                +-- persistent
-                |       --> done, container stays running
-                |
-                +-- grace-period
-                        --> set status = "grace_period", grace_expiry = now + duration
+```mermaid
+flowchart TD
+    A["User exits session"] --> B["Acquire lock"]
+    B --> C["Decrement connections"]
+    C --> D{"connections > 0?"}
+    D -->|Yes| E["Done (other sessions active)"]
+    D -->|No| F{"Check mode"}
+    F -->|destroy-on-disconnect| G["Remove container + services + network"]
+    F -->|persistent| H["Container stays running"]
+    F -->|grace-period| I["Set grace_expiry = now + duration"]
 ```
 
 `RunAndCleanup` wraps the full lifecycle: run the session, then call `Disconnect` with a 10-second timeout context for cleanup.

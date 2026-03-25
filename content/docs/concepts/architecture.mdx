@@ -80,47 +80,6 @@ sequenceDiagram
     podspawn-->>Client: Shell / command output
 ```
 
-```
-User runs: ssh alice@work.pod
-    |
-    v
-Client ~/.ssh/config matches *.pod
-    |
-    v
-ProxyCommand: podspawn connect alice work.pod 22
-    |
-    v
-Resolves work.pod --> actual server from ~/.podspawn/config.yaml
-    |
-    v
-SSH connection to real server, username "alice"
-    |
-    v
-sshd calls: podspawn auth-keys alice
-    |
-    +-- alice in /etc/podspawn/keys/alice?
-    |   YES --> return keys with command="podspawn spawn --user alice"
-    |   NO  --> return nothing, sshd falls through to normal auth
-    |
-    v
-Key matches --> forced command: podspawn spawn --user alice
-    |
-    v
-Session router reads SSH_ORIGINAL_COMMAND, creates/reattaches container
-    |
-    v
-I/O piped, exit code propagated
-    |
-    v
-User exits
-    |
-    +-- ephemeral (grace-period / destroy-on-disconnect)
-    |   --> grace period --> container destroyed
-    |
-    +-- persistent
-        --> container stays alive
-```
-
 ### Session modes
 
 Podspawn supports three session modes that control what happens when a user disconnects:
