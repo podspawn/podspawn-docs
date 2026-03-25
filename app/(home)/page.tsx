@@ -110,7 +110,10 @@ export default function HomePage() {
           </Reveal>
 
           <Reveal delay={0.4}>
-            <TerminalDemo />
+            <div className="relative">
+              <div className="absolute -inset-4 rounded-2xl bg-fd-primary/8 blur-2xl" aria-hidden />
+              <TerminalDemo />
+            </div>
           </Reveal>
 
           <Reveal delay={0.5}>
@@ -174,20 +177,40 @@ export default function HomePage() {
             title="Composable Podfiles"
             description="extends: ubuntu-dev inherits a base with git, ripgrep, fzf, neovim, jq. Your Podfile adds what's specific to your project. Deep merge with bang-replace syntax for full control. Multi-level chains supported."
             visual={
-              <div className="rounded-xl border border-fd-border bg-fd-card p-6 font-mono text-sm space-y-3">
-                <div className="text-fd-muted-foreground"># base: ubuntu-dev</div>
-                <div><span className="text-blue-400">packages</span>: [git, curl, ripgrep, fzf, neovim, jq]</div>
-                <div className="flex items-center gap-2 my-4">
-                  <Layers className="size-4 text-fd-primary" />
-                  <span className="text-fd-primary text-xs font-medium">extends + merges</span>
+              <div className="rounded-xl border border-fd-border bg-fd-card overflow-hidden">
+                <div className="border-b border-fd-border px-4 py-2.5 text-xs font-mono text-fd-muted-foreground flex items-center gap-2">
+                  <Layers className="size-3.5 text-fd-primary" />
+                  extends + deep merge
                 </div>
-                <div className="text-fd-muted-foreground"># your podfile.yaml</div>
-                <div><span className="text-blue-400">packages</span>: [go@1.25]</div>
-                <div className="flex items-center gap-2 my-4">
-                  <span className="text-green-400">=</span>
-                  <span className="text-xs text-fd-muted-foreground">result</span>
+                <div className="p-5 font-mono text-sm space-y-4">
+                  <div className="rounded-lg bg-fd-background/50 p-4 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-fd-muted-foreground mb-2">base: ubuntu-dev</div>
+                    <div><span className="text-blue-400">packages</span>: [<span className="text-fd-muted-foreground">git, curl, ripgrep, fzf, neovim, jq, make</span>]</div>
+                    <div><span className="text-blue-400">shell</span>: <span className="text-fd-muted-foreground">/bin/bash</span></div>
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="flex items-center gap-2 text-fd-primary text-xs">
+                      <span className="h-px w-8 bg-fd-primary/30" />
+                      extends
+                      <span className="h-px w-8 bg-fd-primary/30" />
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-fd-background/50 p-4 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-fd-muted-foreground mb-2">your podfile.yaml</div>
+                    <div><span className="text-blue-400">packages</span>: [<span className="text-fd-primary font-medium">go@1.25</span>]</div>
+                    <div><span className="text-blue-400">services</span>: [<span className="text-fd-primary font-medium">postgres:16</span>]</div>
+                    <div><span className="text-blue-400">on_create</span>: <span className="text-fd-primary font-medium">go mod download</span></div>
+                  </div>
+                  <div className="flex justify-center">
+                    <span className="text-green-400 text-lg">=</span>
+                  </div>
+                  <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-green-400 mb-2">merged result</div>
+                    <div><span className="text-green-400">packages</span>: [git, curl, ripgrep, fzf, neovim, jq, make, <span className="text-fd-primary font-bold">go@1.25</span>]</div>
+                    <div><span className="text-green-400">services</span>: [<span className="text-fd-primary font-bold">postgres:16</span>]</div>
+                    <div><span className="text-green-400">on_create</span>: <span className="text-fd-primary font-bold">go mod download</span></div>
+                  </div>
                 </div>
-                <div><span className="text-green-400">packages</span>: [git, curl, ripgrep, fzf, neovim, jq, <span className="text-fd-primary">go@1.25</span>]</div>
               </div>
             }
           />
@@ -200,15 +223,33 @@ export default function HomePage() {
             description="Postgres, Redis, or any Docker image as sidecar containers on a shared bridge network. Access them by name -- postgres:5432 resolves inside your container. Services start with podspawn dev and stop with podspawn down."
             visual={
               <div className="rounded-xl border border-fd-border bg-fd-card p-6">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-4">
-                    <ServiceBox name="your container" primary />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="rounded-lg border-2 border-fd-primary/50 bg-fd-primary/10 px-6 py-4 text-center">
+                    <div className="text-xs text-fd-muted-foreground mb-1">your dev container</div>
+                    <div className="font-mono text-sm text-fd-primary font-medium">myapp-a3f8</div>
+                    <div className="text-xs text-fd-muted-foreground mt-1">ubuntu:24.04 + go@1.25</div>
                   </div>
-                  <Network className="size-5 text-fd-primary" />
-                  <div className="text-xs text-fd-muted-foreground">bridge network</div>
+                  <div className="w-px h-6 bg-fd-primary/30" />
+                  <div className="flex items-center gap-3 rounded-full bg-fd-primary/10 px-4 py-1.5">
+                    <Network className="size-4 text-fd-primary" />
+                    <span className="text-xs text-fd-primary font-medium">podspawn-alice-net</span>
+                  </div>
+                  <div className="flex items-center gap-8">
+                    <div className="w-px h-6 bg-fd-border" />
+                    <div className="w-px h-6 bg-fd-border" />
+                  </div>
                   <div className="flex items-center gap-4">
-                    <ServiceBox name="postgres:5432" />
-                    <ServiceBox name="redis:6379" />
+                    <div className="rounded-lg border border-fd-border bg-fd-card px-5 py-3 text-center">
+                      <div className="text-xs text-fd-muted-foreground mb-1">postgres</div>
+                      <div className="font-mono text-xs text-fd-foreground">:5432</div>
+                    </div>
+                    <div className="rounded-lg border border-fd-border bg-fd-card px-5 py-3 text-center">
+                      <div className="text-xs text-fd-muted-foreground mb-1">redis</div>
+                      <div className="font-mono text-xs text-fd-foreground">:6379</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs text-fd-muted-foreground text-center">
+                    Access by name: <code className="text-fd-foreground">postgres:5432</code> resolves via Docker DNS
                   </div>
                 </div>
               </div>
@@ -221,23 +262,29 @@ export default function HomePage() {
             title="Hardened by default"
             description="Security isn't an afterthought. Every container drops all capabilities, enables no-new-privileges, and enforces PID limits. Per-user bridge networks isolate traffic. Optional gVisor runtime for untrusted workloads."
             visual={
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { icon: Shield, label: "cap-drop ALL" },
-                  { icon: Shield, label: "no-new-privileges" },
-                  { icon: Shield, label: "PID limits" },
-                  { icon: Shield, label: "per-user networks" },
-                  { icon: Shield, label: "gVisor support" },
-                  { icon: Shield, label: "audit logging" },
-                ].map(({ icon: Icon, label }) => (
-                  <div
-                    key={label}
-                    className="flex items-center gap-2.5 rounded-lg border border-fd-border bg-fd-card p-3"
-                  >
-                    <Icon className="size-4 text-green-500 shrink-0" />
-                    <span className="text-sm text-fd-foreground">{label}</span>
-                  </div>
-                ))}
+              <div className="rounded-xl border border-fd-border bg-fd-card overflow-hidden">
+                <div className="border-b border-fd-border px-4 py-2.5 text-xs font-mono text-fd-muted-foreground flex items-center gap-2">
+                  <Shield className="size-3.5 text-green-500" />
+                  security defaults
+                </div>
+                <div className="grid grid-cols-2 gap-px bg-fd-border">
+                  {[
+                    { label: "cap-drop ALL", desc: "No kernel capabilities" },
+                    { label: "no-new-privileges", desc: "No privilege escalation" },
+                    { label: "PID limits", desc: "Fork bomb protection" },
+                    { label: "per-user networks", desc: "Traffic isolation" },
+                    { label: "gVisor runtime", desc: "Sandboxed syscalls" },
+                    { label: "audit logging", desc: "JSON-lines events" },
+                  ].map(({ label, desc }) => (
+                    <div key={label} className="bg-fd-card p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield className="size-3.5 text-green-500 shrink-0" />
+                        <span className="text-sm font-medium text-fd-foreground">{label}</span>
+                      </div>
+                      <span className="text-xs text-fd-muted-foreground">{desc}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             }
           />
@@ -249,18 +296,30 @@ export default function HomePage() {
             title="Every SSH feature works"
             description="SFTP, scp, rsync, port forwarding, agent forwarding. VS Code Remote, JetBrains Gateway, Cursor. Because podspawn hooks into native sshd, not a custom SSH server. OpenSSH handles the protocol."
             visual={
-              <div className="grid grid-cols-3 gap-3">
-                {["SFTP", "scp", "rsync", "Port fwd", "Agent fwd", "VS Code", "JetBrains", "Cursor", "Any client"].map(
-                  (name) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-center rounded-lg border border-fd-border bg-fd-card px-3 py-3 text-sm text-fd-foreground"
-                    >
-                      <Monitor className="size-3.5 mr-1.5 text-fd-primary" />
-                      {name}
+              <div className="rounded-xl border border-fd-border bg-fd-card overflow-hidden">
+                <div className="border-b border-fd-border px-4 py-2.5 text-xs font-mono text-fd-muted-foreground flex items-center gap-2">
+                  <Monitor className="size-3.5 text-fd-primary" />
+                  native sshd = everything works
+                </div>
+                <div className="grid grid-cols-3 gap-px bg-fd-border">
+                  {[
+                    { name: "SFTP", desc: "File browser" },
+                    { name: "scp", desc: "File copy" },
+                    { name: "rsync", desc: "Incremental sync" },
+                    { name: "Port fwd", desc: "-L / -R tunnels" },
+                    { name: "Agent fwd", desc: "SSH keys pass-through" },
+                    { name: "VS Code", desc: "Remote extension" },
+                    { name: "JetBrains", desc: "Gateway" },
+                    { name: "Cursor", desc: "AI editor" },
+                    { name: "Any client", desc: "OpenSSH compatible" },
+                  ].map(({ name, desc }) => (
+                    <div key={name} className="bg-fd-card p-3.5 text-center">
+                      <div className="text-sm font-medium text-fd-foreground">{name}</div>
+                      <div className="text-[10px] text-fd-muted-foreground mt-0.5">{desc}</div>
                     </div>
                   )
                 )}
+                </div>
               </div>
             }
           />
