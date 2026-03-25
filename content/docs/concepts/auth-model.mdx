@@ -49,6 +49,7 @@ GitHub key import is a one-time operation, not a runtime dependency. The `--gith
 ## The auth-keys flow
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 flowchart TD
     A["sshd receives connection"] --> B["AuthorizedKeysCommand"]
     B --> C["podspawn auth-keys username"]
@@ -111,6 +112,7 @@ This is an explicit allowlist -- any new SSH feature added in the future is disa
 The key design constraint: podspawn must never interfere with normal system users. The mechanism is simple:
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 flowchart TD
     A["sshd calls: podspawn auth-keys bob"] --> B{"/etc/podspawn/keys/bob exists?"}
     B -->|No| C["Return nothing (exit 0)"]

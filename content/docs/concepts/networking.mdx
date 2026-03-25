@@ -27,6 +27,7 @@ resp, err := d.cli.NetworkCreate(ctx, name, network.CreateOptions{
 If the network already exists (from a previous crash), the existing network is reused rather than failing.
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 graph TB
     subgraph "podspawn-alice-net"
         A["myapp container"]
@@ -43,6 +44,7 @@ graph TB
 Docker's default bridge network allows all containers to communicate by IP. On a multi-tenant podspawn server, this means alice's container could reach bob's postgres. Per-user networks prevent this:
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 graph LR
     subgraph "podspawn-alice-net (isolated)"
         A1["alice's container"]

@@ -18,6 +18,7 @@ This inherits everything from the `ubuntu-dev` base (git, curl, ripgrep, fzf, ne
 ## Resolution order
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 graph TD
     A["podfile.yaml with extends"] --> B{Resolve}
     B -->|Local path| C["./base.yaml"]

@@ -9,11 +9,13 @@ A session in podspawn maps a `(user, project)` pair to a running container. The 
 
 In local mode, container lifecycle is manual and explicit:
 
-```
-create  ──>  running  ──>  stop  ──>  gone
-               │                        ▲
-               │      podspawn stop     │
-               └────────────────────────┘
+```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
+graph LR
+    A["podspawn create"] --> B["running"]
+    B --> C["podspawn stop"]
+    C --> D["gone"]
+    B -.->|"podspawn run (ephemeral)"| D
 ```
 
 There are no grace periods, no cleanup daemon, and no max lifetimes. A machine created with `podspawn create` runs until you destroy it with `podspawn stop`. A machine created with `podspawn run` is ephemeral and destroys itself when you exit the shell.
@@ -52,6 +54,7 @@ If you're done for the day, `podspawn stop` is the right call. If you're switchi
 ## Server mode lifecycle
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 stateDiagram-v2
     [*] --> Running: connect
     Running --> GracePeriod: disconnect (grace mode)
@@ -91,6 +94,7 @@ PRAGMA busy_timeout=5000;
 When `podspawn spawn` runs, `ensureContainerWithState` in `internal/spawn/spawn.go` executes under an exclusive per-user file lock:
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 flowchart TD
     A["podspawn spawn --user alice"] --> B["Acquire file lock"]
     B --> C["Reconcile stale state"]
@@ -140,6 +144,7 @@ The `MAX(0, ...)` guard prevents the count from going negative if something goes
 `Session.Disconnect` in `internal/spawn/spawn.go` handles teardown:
 
 ```mermaid
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#DF3F00", "primaryTextColor": "#fff", "primaryBorderColor": "#DF3F00", "lineColor": "#888", "secondaryColor": "#2a1a0a", "tertiaryColor": "#1a1a1a"}}}%%
 flowchart TD
     A["User exits session"] --> B["Acquire lock"]
     B --> C["Decrement connections"]

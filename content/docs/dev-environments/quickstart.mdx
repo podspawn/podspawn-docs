@@ -101,16 +101,14 @@ podspawn prebuild --tag myimg:v1   # custom tag for CI
 
 ## Flags
 
-<TypeTable
-  type={{
-    '--ephemeral': { type: 'boolean', description: 'Destroy container on exit' },
-    '--dotfiles': { type: 'boolean', description: 'Apply your personal dotfiles from ~/.podspawn/config.yaml' },
-    '--name': { type: 'string', description: 'Override the session name (default: derived from directory)' },
-    '--fresh': { type: 'boolean', description: 'Destroy any existing session and start clean' },
-    '--ports': { type: 'string', description: 'Forward additional ports (e.g. 9090,9091)' },
-    '--podfile': { type: 'string', description: 'Use a specific Podfile instead of auto-detecting' },
-  }}
-/>
+| Flag | Type | Description |
+|------|------|-------------|
+| `--ephemeral` | boolean | Destroy container on exit instead of keeping it alive |
+| `--dotfiles` | boolean | Apply your personal dotfiles from `~/.podspawn/config.yaml` |
+| `--name <name>` | string | Override the session name (default: derived from directory) |
+| `--fresh` | boolean | Destroy any existing session and start clean |
+| `--ports 9090,9091` | string | Forward additional ports beyond what the Podfile declares |
+| `--podfile <path>` | string | Use a specific Podfile instead of auto-detecting |
 
 ## No Podfile?
 
