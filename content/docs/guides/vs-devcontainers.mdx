@@ -1,0 +1,147 @@
+---
+title: Podspawn vs Devcontainers
+description: When podspawn makes more sense than devcontainer.json, when it doesn't, and how to migrate between them.
+---
+
+Devcontainers and podspawn both put your dev environment in a container. The overlap ends there. They disagree about how you get into the container, who manages its lifecycle, and what happens when you disconnect.
+
+This page is for people who already use devcontainers and want to know whether podspawn solves a problem they have, or creates new ones.
+
+## The architectural split
+
+Devcontainers are an IDE feature. VS Code reads `devcontainer.json`, builds a container, installs its server component inside, and connects. The IDE owns the container lifecycle. Without the IDE, the container is inert.
+
+Podspawn is an SSH feature. It hooks into native sshd (server mode) or runs containers via docker exec (local mode). Any SSH client connects. Any editor that supports SSH Remote works. The container lifecycle is managed by podspawn, not your editor.
+
+This difference is not philosophical. It determines what you can and can't do.
+
+## What podspawn does that devcontainers don't
+
+### Companion services with lifecycle management
+
+A Podfile declares services alongside the dev environment:
+
+```yaml
+services:
+  - name: postgres
+    image: postgres:16
+    env: { POSTGRES_PASSWORD: devpass }
+  - name: redis
+    image: redis:7
+```
+
+Services start with the container, live on a shared Docker network (reachable by name), and die with the session. No separate docker-compose file. No manual teardown.
+
+With devcontainers, you wire up a `docker-compose.yml` next to your `devcontainer.json` and manage it yourself. The IDE doesn't know when to stop the database.
+
+### Podfile composition
+
+Podfiles inherit from other Podfiles:
+
+```yaml
+extends: ubuntu-dev
+
+packages:
+  - go@1.25
+
+services:
+  - name: postgres
+    image: postgres:16
+```
+
+The `extends` field loads a base template and deep-merges your overrides. Your team maintains one base with common tools (git, ripgrep, fzf, make), and each repo adds what it needs. If you want to replace a field entirely instead of merging, use the bang syntax: `packages!: [go@1.25]`.
+
+Devcontainer features are additive (you can layer features onto a base image), but there's no inheritance between `devcontainer.json` files. You can't say "start from the team template and override the Node version."
+
+### SSH server mode
+
+Podspawn has a server mode where it hooks into sshd via `AuthorizedKeysCommand`. Teammates SSH into a shared machine, each gets an isolated container with per-user bridge networks. No client install required on their end.
+
+```bash
+# teammate's machine, no podspawn installed
+ssh alice@devbox.company.com
+# container created, shell ready
+```
+
+VS Code Remote SSH, JetBrains Gateway, Cursor, and plain terminal all work because SSH is SSH. See [Architecture](/docs/concepts/architecture) for how this works.
+
+Devcontainers have no equivalent. For remote dev environments, you need Codespaces (GitHub-hosted, paid) or a separate tool like Coder or Gitpod.
+
+### Session lifecycle
+
+Podspawn containers can auto-destroy:
+
+- **destroy-on-disconnect**: container is gone when the last SSH connection closes
+- **grace-period**: container survives disconnects for a configurable window (default 60s), then self-destructs
+- **persistent**: container stays alive, home directory bind-mounted, for long-running work
+
+Devcontainers are always persistent. You start them, they run until you stop them. There's no cleanup daemon, no grace period, no reference counting of connections. On a shared server (if you could run them there), orphaned containers would pile up.
+
+### Automatic teardown
+
+```bash
+podspawn down          # stop container and services
+podspawn down --clean  # also remove volumes
+```
+
+With devcontainers, you're running `docker compose down` or clicking "Rebuild Container" in VS Code. If you forget, the database container from three weeks ago is still running.
+
+## What devcontainers do better
+
+### IDE integration
+
+"Reopen in Container" is one click. The IDE installs extensions inside the container, debugging works with breakpoints, the terminal panel is already connected. Podspawn gives you a shell. You can connect VS Code via Remote SSH, but you're setting up the SSH config yourself and the IDE's server component reinstalls on every fresh container (unless you use persistent mode or a grace period).
+
+### Codespaces prebuilds
+
+GitHub Codespaces can prebuild container images per branch. Open a Codespace and the environment is ready in under 5 seconds. Podspawn's `podspawn prebuild` caches images, so warm starts are fast (under a second), but the first build for a new Podfile takes 2-5 minutes.
+
+### Features ecosystem
+
+Microsoft maintains 100+ devcontainer features: Docker-in-Docker, language runtimes, GitHub CLI, cloud SDKs. You add `"features": {"ghcr.io/devcontainers/features/docker-in-docker:2": {}}` and it works. Podspawn's `packages` field handles common runtimes (Go, Node, Python, Rust), but for anything else, you're writing shell in `on_create`. More control, less pre-packaged.
+
+### Windows support (native)
+
+Devcontainers work natively on Windows with Docker Desktop and WSL. Podspawn's local mode works on Windows, but server mode (sshd integration) is Linux-only.
+
+## Migration
+
+Podspawn reads `devcontainer.json` as a fallback. If your repo has one and no `podfile.yaml`, `podspawn dev` will convert it internally and use it. See [devcontainer.json Fallback](/docs/podfile/devcontainer) for the field mapping and limitations.
+
+To migrate fully, the mapping is:
+
+| devcontainer.json | podfile.yaml |
+|---|---|
+| `image` | `base` |
+| `features` | `packages` + `on_create` |
+| `containerEnv` / `remoteEnv` | `env` |
+| `forwardPorts` | `ports.expose` |
+| `postCreateCommand` | `on_create` |
+| `postStartCommand` | `on_start` |
+| docker-compose services | `services` |
+
+The conversion is lossy. Dockerfile-based builds, multi-stage features, and VS Code extension lists have no Podfile equivalent. For those cases, keep both files or rewrite the setup logic in `on_create`.
+
+## When to use which
+
+**Use podspawn when:**
+- You want companion services (databases, queues) managed with the container lifecycle
+- You need a shared dev server where multiple people SSH in
+- You're setting up environments for AI agents or CI
+- You want environment composition across repos (extends, templates)
+- You prefer terminal-first workflows or use multiple editors
+
+**Use devcontainers when:**
+- Your team is standardized on VS Code and wants one-click container setup
+- You're using GitHub Codespaces and want sub-5-second prebuilt environments
+- You need the devcontainer features ecosystem (100+ pre-packaged tools)
+- Your workflow depends on IDE-integrated debugging with breakpoints
+
+**Use both:**
+- Keep a `devcontainer.json` for teammates who prefer VS Code's native integration. Add a `podfile.yaml` for teammates who SSH in, for CI, or for agent workflows. Podspawn ignores `devcontainer.json` when a Podfile exists, so they coexist without conflict.
+
+<Cards>
+  <Card title="devcontainer.json Fallback" href="/docs/podfile/devcontainer" />
+  <Card title="Getting Started with podspawn dev" href="/docs/dev-environments/quickstart" />
+  <Card title="AI Agent Environments" href="/docs/guides/ai-agents" />
+</Cards>
