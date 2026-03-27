@@ -15,11 +15,13 @@ Podspawn is an SSH feature. It hooks into native sshd (server mode) or runs cont
 
 This difference is not philosophical. It determines what you can and can't do.
 
-## What podspawn does that devcontainers don't
+## Where they differ
 
-### Companion services with lifecycle management
+### Companion services
 
-A Podfile declares services alongside the dev environment:
+Both tools support companion services. Devcontainers use a `docker-compose.yml` alongside `devcontainer.json`, with `dockerComposeFile` pointing to it and `shutdownAction: "stopCompose"` to stop everything when VS Code disconnects.
+
+Podspawn puts services inline in the Podfile:
 
 ```yaml
 services:
@@ -30,9 +32,7 @@ services:
     image: redis:7
 ```
 
-Services start with the container, live on a shared Docker network (reachable by name), and die with the session. No separate docker-compose file. No manual teardown.
-
-With devcontainers, you wire up a `docker-compose.yml` next to your `devcontainer.json` and manage it yourself. The IDE doesn't know when to stop the database.
+The tradeoff is one file vs two. In podspawn, services are part of the same config as your packages, hooks, and environment. They start with the session, live on a shared Docker network (reachable by name), and die when the session ends, including across SSH disconnects and grace periods. With devcontainers, the compose lifecycle is tied to the IDE window, not the session. Close VS Code and `shutdownAction` fires. For multi-window setups you need `shutdownAction: "none"` and manual cleanup.
 
 ### Podfile composition
 
@@ -53,9 +53,11 @@ The `extends` field loads a base template and deep-merges your overrides. Your t
 
 Devcontainer features are additive (you can layer features onto a base image), but there's no inheritance between `devcontainer.json` files. You can't say "start from the team template and override the Node version."
 
-### SSH server mode
+### Remote access
 
-Podspawn has a server mode where it hooks into sshd via `AuthorizedKeysCommand`. Teammates SSH into a shared machine, each gets an isolated container with per-user bridge networks. No client install required on their end.
+Devcontainers support remote hosts. VS Code's Remote-SSH extension can connect to a machine with Docker, then "Reopen in Container" works as if local. The devcontainer CLI can also target a remote Docker daemon via `DOCKER_HOST`, though bind mounts reference paths on the remote host, not your local machine.
+
+Podspawn takes a different approach. Server mode hooks into native sshd via `AuthorizedKeysCommand`, so any SSH client connects without special tooling:
 
 ```bash
 # teammate's machine, no podspawn installed
@@ -63,9 +65,7 @@ ssh alice@devbox.company.com
 # container created, shell ready
 ```
 
-VS Code Remote SSH, JetBrains Gateway, Cursor, and plain terminal all work because SSH is SSH. See [Architecture](/docs/concepts/architecture) for how this works.
-
-Devcontainers have no equivalent. For remote dev environments, you need Codespaces (GitHub-hosted, paid) or a separate tool like Coder or Gitpod.
+VS Code Remote SSH, JetBrains Gateway, Cursor, and plain terminal all work. The difference is that devcontainers require VS Code (or the CLI with its limitations) on the client side. Podspawn requires nothing on the client, just an SSH key. For multi-user shared servers with per-user isolation, podspawn handles this natively. See [Architecture](/docs/concepts/architecture) for details.
 
 ### Session lifecycle
 
@@ -75,7 +75,7 @@ Podspawn containers can auto-destroy:
 - **grace-period**: container survives disconnects for a configurable window (default 60s), then self-destructs
 - **persistent**: container stays alive, home directory bind-mounted, for long-running work
 
-Devcontainers are always persistent. You start them, they run until you stop them. There's no cleanup daemon, no grace period, no reference counting of connections. On a shared server (if you could run them there), orphaned containers would pile up.
+Devcontainers are always persistent. You start them, they run until you stop them. There's no cleanup daemon, no grace period, no reference counting of connections.
 
 ### Automatic teardown
 
@@ -84,7 +84,7 @@ podspawn down          # stop container and services
 podspawn down --clean  # also remove volumes
 ```
 
-With devcontainers, you're running `docker compose down` or clicking "Rebuild Container" in VS Code. If you forget, the database container from three weeks ago is still running.
+Devcontainers have `shutdownAction: "stopCompose"` which stops services when VS Code disconnects, but there's no equivalent of grace periods, max lifetimes, or reference-counted connections. On a shared server, orphaned containers from crashed IDE sessions can pile up.
 
 ## What devcontainers do better
 
@@ -125,11 +125,11 @@ The conversion is lossy. Dockerfile-based builds, multi-stage features, and VS C
 ## When to use which
 
 **Use podspawn when:**
-- You want companion services (databases, queues) managed with the container lifecycle
 - You need a shared dev server where multiple people SSH in
 - You're setting up environments for AI agents or CI
 - You want environment composition across repos (extends, templates)
 - You prefer terminal-first workflows or use multiple editors
+- You want session lifecycle management (auto-destroy, grace periods, max lifetimes)
 
 **Use devcontainers when:**
 - Your team is standardized on VS Code and wants one-click container setup
