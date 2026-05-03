@@ -1,6 +1,6 @@
 ---
 title: podspawn shell
-description: Attach to a local machine with an interactive shell
+description: Attach to a local machine with an interactive shell, or restart a stopped project-backed machine
 ---
 
 Attaches to a running podspawn machine with an interactive shell. This is the primary way to connect to local machines.
@@ -41,6 +41,8 @@ $ podspawn shell alice@backend
 `podspawn shell` uses Docker exec to open a shell inside the container as your non-root user. No SSH is involved, so there is nothing to configure and no port conflicts to worry about. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
 This is the primary way to use podspawn locally. SSH is a separate feature for remote access, team servers, and IDE integration.
+
+For project-backed machines created with `podspawn create --project ...`, `shell` also acts as the restart entrypoint. If the container was stopped with `podspawn stop`, podspawn recreates it from the saved workspace under `~/.podspawn/workspaces/<name>/`, reruns `on_start`, and skips `on_create` unless the workspace never initialized successfully.
 
 ## When you need SSH instead
 

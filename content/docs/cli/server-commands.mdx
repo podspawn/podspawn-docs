@@ -241,11 +241,11 @@ podspawn add-project <name> --repo <url> [flags]
 
 ### What it does
 
-1. Clones the repository to `/var/lib/podspawn/projects/<name>`
+1. Clones the repository to the local project cache (`/var/lib/podspawn/projects/<name>` in server mode, `~/.podspawn/projects/<name>` in local mode)
 2. Searches for a Podfile (`podfile.yaml`, `.podspawn/podfile.yaml`, etc.)
 3. Parses the Podfile and generates a Dockerfile from it
 4. Builds and tags the image with a content-hash for cache invalidation
-5. Saves the project config to `/etc/podspawn/projects.yaml`
+5. Saves the project config to the active projects registry (`/etc/podspawn/projects.yaml` in server mode, `~/.podspawn/projects.yaml` in local mode)
 
 If any step fails, the cloned directory is cleaned up automatically.
 

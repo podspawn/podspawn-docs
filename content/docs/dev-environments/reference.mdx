@@ -17,6 +17,9 @@ extends: ubuntu-dev  # registry name, local path, or GitHub URL
 # Session name override (default: derived from directory name + hash)
 name: my-project
 
+# Default branch for local project-backed machines
+branch: main
+
 # Packages to install
 packages:
   - go@1.24
@@ -90,6 +93,7 @@ workspace: /workspace/myapp
       base: { type: 'string', description: 'Base Docker image. Required unless extends is set.', default: '—' },
       extends: { type: 'string', description: 'Inherit from another Podfile. Registry name, local path, or GitHub URL.', default: '—' },
       name: { type: 'string', description: 'Session name override. Not inherited.', default: 'dir basename' },
+      branch: { type: 'string', description: 'Default git branch for `podspawn create/run --project` when the CLI does not pass `--branch`.', default: 'repo default branch' },
       shell: { type: 'string', description: 'Default shell. Must be an absolute path.', default: '/bin/bash' },
       mount: { type: '"bind" | "copy" | "none"', description: 'How the host directory is available inside the container.', default: 'bind' },
       mode: { type: '"grace-period" | "destroy-on-disconnect" | "persistent"', description: 'Session lifecycle mode.', default: 'grace-period' },

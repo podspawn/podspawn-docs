@@ -1,6 +1,6 @@
 ---
 title: podspawn create
-description: Create a persistent named machine
+description: Create a persistent named machine, optionally from a registered project branch
 ---
 
 Creates a persistent named machine. The container stays alive until you explicitly stop it with `podspawn stop`.
@@ -9,6 +9,7 @@ Creates a persistent named machine. The container stays alive until you explicit
 
 ```bash
 podspawn create <name> [--image IMAGE]
+podspawn create <name> --project <registered-project> [--branch <git-branch>]
 ```
 
 ## Arguments
@@ -25,11 +26,21 @@ podspawn create <name> [--image IMAGE]
 
 Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`.
 </Accordion>
+<Accordion title="--project">
+Use a registered project from `projects.yaml` as the source for this machine. Podspawn clones that repo into a machine-specific workspace under `~/.podspawn/workspaces/<name>/` in local mode.
+</Accordion>
+<Accordion title="--branch">
+Git branch to clone for project-backed machines. If omitted, podspawn resolves the branch with this precedence:
+
+1. `--branch`
+2. Podfile top-level `branch:`
+3. The repo's default branch
+</Accordion>
 </Accordions>
 
 ## Examples
 
-<Tabs items={['Basic', 'Advanced']}>
+<Tabs items={['Basic', 'Image override', 'Project branch']}>
 <Tab value="Basic">
 ```bash
 # Create a machine with the default image
@@ -37,11 +48,21 @@ $ podspawn create dev
 ✓ Creating dev (ubuntu:24.04)
 ```
 </Tab>
-<Tab value="Advanced">
+<Tab value="Image override">
 ```bash
 # Create a machine with a specific image
 $ podspawn create dev --image alpine:3.20
 ✓ Creating dev (alpine:3.20)
+```
+</Tab>
+<Tab value="Project branch">
+```bash
+# Register the project once
+$ podspawn add-project backend --repo https://github.com/company/backend
+
+# Create a persistent machine from a feature branch
+$ podspawn create auth-fix --project backend --branch feat/auth-retry
+✓ Creating auth-fix (podspawn/auth-fix:podfile-...)
 ```
 </Tab>
 </Tabs>
@@ -49,23 +70,27 @@ $ podspawn create dev --image alpine:3.20
 ## What happens
 
 <Steps>
-<Step>Pulls the image if not already cached locally</Step>
+<Step>If `--project` is set, resolves the branch and clones the repo into `~/.podspawn/workspaces/<name>/`</Step>
+<Step>Reads the Podfile from that workspace, builds or reuses the image, and bind-mounts the checkout into the container</Step>
 <Step>Creates a container with `sleep infinity` as the entrypoint to keep it alive</Step>
 <Step>Creates a non-root user inside the container (UID 1000, home at `/home/<username>`, passwordless sudo)</Step>
-<Step>Registers the machine in the state database</Step>
+<Step>Runs `on_create` once for a new workspace, then `on_start`</Step>
+<Step>Registers the running session in the state database and, for project-backed machines, stores persistent machine metadata for later restarts</Step>
 </Steps>
 
 The container runs as your OS username, not root. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
 The machine keeps running until you stop it. An idle machine uses negligible resources (~0% CPU, 5-15 MB memory). Attach to it with `podspawn shell`, or list your machines with `podspawn list`. See [Session Lifecycle](/docs/concepts/session-lifecycle#idle-containers) for details on idle resource cost.
 
+For project-backed machines, `podspawn stop <name>` removes the container, network, and sidecars but keeps the host checkout and machine metadata. `podspawn shell <name>` recreates the container from the saved workspace without recloning or rerunning `on_create`.
+
 ## Lifecycle
 
 ```
-create  -->  running  -->  stop  -->  gone
-                ^                      |
-                |    start (future)    |
-                +----------------------+
+create  -->  running  -->  stop  -->  stopped workspace
+                ^                           |
+                |    shell / create         |
+                +---------------------------+
 ```
 
 Unlike `podspawn run`, created machines survive disconnects. They are not ephemeral.

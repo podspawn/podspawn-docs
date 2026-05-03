@@ -30,13 +30,13 @@ Every podspawn container follows this sequence. Understanding it is key to writi
 3. Shell attached (or command executed)
 ```
 
-Steps 6-8 only run once, when the container is first created. The `on_start` hook runs on every connection, including the first.
+Steps 6-8 only run once for a fresh workspace. The `on_start` hook runs on every connection, including the first.
 
 <Tabs items={['on_create', 'on_start']}>
 <Tab value="on_create">
 ## on_create
 
-Runs once per container, after dotfiles and repos are cloned, before `on_start`. Use it for one-time setup: installing project dependencies, running database migrations, compiling assets, seeding data.
+Runs once per fresh workspace, after dotfiles and repos are cloned, before `on_start`. Use it for one-time setup: installing project dependencies, running database migrations, compiling assets, seeding data.
 
 ```yaml
 on_create: |
@@ -45,7 +45,7 @@ on_create: |
   python manage.py migrate
 ```
 
-If the container already exists when you connect, `on_create` does not run again. To re-run it, destroy and recreate the container.
+If the container already exists when you connect, `on_create` does not run again. For local branch workspaces, stopping and restarting the machine also skips `on_create`, because podspawn persists the initialized workspace separately from the container. To re-run it, remove the workspace and create a new machine.
 </Tab>
 
 <Tab value="on_start">
@@ -71,7 +71,7 @@ Both hooks run with these properties:
 - **Working directory:** `/home/<username>` (the user's home directory).
 - **Shell:** `sh -c "<script>"`. The script is passed as a single string.
 - **Sudo:** Available without a password. Podfile-built images always include sudo and a NOPASSWD sudoers entry for the container user.
-- **Exit code:** A non-zero exit is logged as a warning. It does **not** stop the remaining setup or prevent the shell from opening. The container stays usable.
+- **Exit code:** `on_create` is fatal. If it exits non-zero, podspawn tears down the failed container and returns an error. For local named project machines, the checkout is left on disk so you can inspect and fix it before retrying. `on_start` remains non-fatal and logs a warning on failure.
 
 ### Environment variables
 
@@ -211,17 +211,17 @@ The distinction matters:
 
 ## Error handling
 
-Podspawn is intentionally lenient with hook failures. The philosophy is that a partially configured container is more useful than no container.
+Podspawn is intentionally lenient with most setup failures, but not with `on_create`.
 
 | Step | On failure |
 |------|-----------|
 | Dotfiles clone | Warning logged, setup continues |
 | Dotfiles install script | Warning logged, setup continues |
 | Repo clone | Warning logged, remaining repos still clone |
-| `on_create` | Warning logged, `on_start` still runs, shell opens |
+| `on_create` | Fatal error, failed container is removed, local named-machine workspace is kept for inspection |
 | `on_start` | Warning logged, shell opens |
 
-A non-zero exit code from any hook or script is never fatal. The container always starts.
+A non-zero exit code from `on_start` is never fatal. A non-zero exit from `on_create` aborts initialization because the machine is not trustworthy yet.
 
 ## User overrides (server mode)
 

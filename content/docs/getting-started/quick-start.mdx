@@ -53,6 +53,20 @@ podspawn run scratch  # one-shot throwaway container
 </Step>
 
 <Step>
+### Branch workspace (optional)
+
+For a real repo, register it once and then create isolated machines per branch:
+
+```bash
+podspawn add-project backend --repo https://github.com/company/backend
+podspawn create auth-fix --project backend --branch feat/auth-retry
+podspawn shell auth-fix
+```
+
+This clones the repo into `~/.podspawn/workspaces/auth-fix/`, mounts it into the container, and keeps the checkout around even after `podspawn stop auth-fix`.
+</Step>
+
+<Step>
 ### Stop the container
 
 ```bash

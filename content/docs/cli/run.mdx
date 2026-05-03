@@ -1,6 +1,6 @@
 ---
 title: podspawn run
-description: Create and attach to an ephemeral machine
+description: Create and attach to an ephemeral machine, optionally from a registered project branch
 ---
 
 Creates an ephemeral machine, attaches to it, and destroys it when you disconnect. The podspawn equivalent of `docker run --rm`.
@@ -11,6 +11,7 @@ Creates an ephemeral machine, attaches to it, and destroys it when you disconnec
 
 ```bash
 podspawn run <name> [--image IMAGE]
+podspawn run <name> --project <registered-project> [--branch <git-branch>]
 ```
 
 ## Arguments
@@ -24,20 +25,28 @@ podspawn run <name> [--image IMAGE]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--image` | (from config) | Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`. |
+| `--project` | — | Registered project to clone into a temporary workspace before starting the machine. |
+| `--branch` | — | Git branch for project-backed runs. Uses `--branch` > Podfile `branch:` > repo default branch. |
 
 ## Examples
 
-<Tabs items={['Basic', 'Advanced']}>
+<Tabs items={['Basic', 'Image override', 'Project branch']}>
 <Tab value="Basic">
 ```bash
 # Spin up a throwaway machine
 $ podspawn run scratch
 ```
 </Tab>
-<Tab value="Advanced">
+<Tab value="Image override">
 ```bash
 # Use a specific image
 $ podspawn run test --image node:22
+```
+</Tab>
+<Tab value="Project branch">
+```bash
+# Review a branch in a fully disposable workspace
+$ podspawn run review --project backend --branch release/1.4
 ```
 </Tab>
 </Tabs>
@@ -45,10 +54,12 @@ $ podspawn run test --image node:22
 ## What happens
 
 <Steps>
-<Step>Pulls the image if not already cached locally</Step>
+<Step>If `--project` is set, clones the repo into a temporary workspace under `~/.podspawn/workspaces/`</Step>
+<Step>Reads the Podfile from that clone, builds or reuses the image, and bind-mounts the checkout into the container</Step>
 <Step>Creates a container with a non-root user (UID 1000, home at `/home/<username>`, passwordless sudo)</Step>
 <Step>Attaches an interactive shell as that user</Step>
 <Step>When you disconnect (exit the shell or close the terminal), the container is destroyed</Step>
+<Step>If this was a project-backed run, the temporary workspace is removed too</Step>
 </Steps>
 
 No state is persisted after disconnect. If you need a machine that survives disconnects, use `podspawn create` instead.

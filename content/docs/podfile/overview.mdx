@@ -69,6 +69,9 @@ base: ubuntu:24.04
 # Session name override (default: derived from directory name)
 # name: my-project
 
+# Default git branch for local project-backed machines
+# branch: main
+
 # Packages to install
 # Plain names use apt-get. Versioned packages use name@version syntax.
 packages:
@@ -171,6 +174,7 @@ Every field in the Podfile schema, with types, defaults, and validation rules.
 | `extra_commands` | `string[]` | no | `[]` | Additional shell commands added as `RUN` instructions in the generated Dockerfile, after package installation. |
 | `extends` | `string` | no | -- | Inherit from a base Podfile. Accepts local path, registry name, or GitHub URL. See [Extending Podfiles](/docs/dev-environments/extending). |
 | `name` | `string` | no | dir basename | Override the session name used by `podspawn dev`. |
+| `branch` | `string` | no | repo default branch | Default branch for `podspawn create/run --project` when `--branch` is omitted. |
 | `mount` | `string` | no | `bind` | How host directory is available in container: `bind` (live sync), `copy` (one-time copy), `none`. |
 | `mode` | `string` | no | `grace-period` | Session lifecycle: `grace-period`, `destroy-on-disconnect`, `persistent`. |
 | `workspace` | `string` | no | `/workspace/<dir>` | Mount target path inside the container. Must be absolute. |

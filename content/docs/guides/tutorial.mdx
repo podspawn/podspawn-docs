@@ -124,7 +124,7 @@ You drop straight into a shell. When you exit, the container is destroyed silent
 <Step>
 ### Use a Podfile
 
-For a project with specific dependencies, create a `podfile.yaml`:
+For a project with specific dependencies, commit a `podfile.yaml` in the repo:
 
 ```yaml
 base: ubuntu:24.04
@@ -149,13 +149,21 @@ on_create: |
   cd /workspace && npm install
 ```
 
-Then create a machine from it:
+Register the project once:
 
 ```bash
-podspawn create api --podfile podfile.yaml
+podspawn add-project api --repo https://github.com/your-org/your-repo
 ```
 
-The container comes up with Node.js installed and a PostgreSQL sidecar running on the same Docker network. When you stop the machine, the sidecar is cleaned up too.
+Then create a machine from a branch:
+
+```bash
+podspawn create api-main --project api
+podspawn create api-auth --project api --branch feat/auth-retry
+podspawn shell api-auth
+```
+
+Each machine gets its own host checkout under `~/.podspawn/workspaces/<machine>/`. The container comes up with Node.js installed and a PostgreSQL sidecar running on the same Docker network. When you stop the machine, the sidecar is cleaned up, but the checkout is kept so `podspawn shell api-auth` can restart it without recloning.
 </Step>
 </Steps>
 
