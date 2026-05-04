@@ -35,6 +35,8 @@ Git branch to clone for project-backed machines. If omitted, podspawn resolves t
 1. `--branch`
 2. Podfile top-level `branch:`
 3. The repo's default branch
+
+This flag only works with `--project`.
 </Accordion>
 </Accordions>
 
@@ -78,11 +80,13 @@ $ podspawn create auth-fix --project backend --branch feat/auth-retry
 <Step>Registers the running session in the state database and, for project-backed machines, stores persistent machine metadata for later restarts</Step>
 </Steps>
 
+If `on_create` fails for a local project-backed machine, podspawn removes the failed container but keeps the checkout on disk so you can inspect and retry it. The next `podspawn create <name>` or `podspawn shell <name>` retries `on_create`, so the hook needs to be idempotent.
+
 The container runs as your OS username, not root. The shell prompt shows `username@machinename` (e.g., `karthik@dev:~$`).
 
 The machine keeps running until you stop it. An idle machine uses negligible resources (~0% CPU, 5-15 MB memory). Attach to it with `podspawn shell`, or list your machines with `podspawn list`. See [Session Lifecycle](/docs/concepts/session-lifecycle#idle-containers) for details on idle resource cost.
 
-For project-backed machines, `podspawn stop <name>` removes the container, network, and sidecars but keeps the host checkout and machine metadata. `podspawn shell <name>` recreates the container from the saved workspace without recloning or rerunning `on_create`.
+For project-backed machines, `podspawn stop <name>` removes the container, network, and sidecars but keeps the host checkout and machine metadata. `podspawn shell <name>` recreates the container from the saved workspace without recloning. It reruns `on_create` only if the workspace never reached the initialized state.
 
 ## Lifecycle
 

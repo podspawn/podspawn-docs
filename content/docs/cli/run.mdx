@@ -26,7 +26,7 @@ podspawn run <name> --project <registered-project> [--branch <git-branch>]
 |------|---------|-------------|
 | `--image` | (from config) | Container image to use. Falls back to `defaults.image` in config, which defaults to `ubuntu:24.04`. |
 | `--project` | — | Registered project to clone into a temporary workspace before starting the machine. |
-| `--branch` | — | Git branch for project-backed runs. Uses `--branch` > Podfile `branch:` > repo default branch. |
+| `--branch` | — | Git branch for project-backed runs. Uses `--branch` > Podfile `branch:` > repo default branch. Requires `--project`. |
 
 ## Examples
 
@@ -54,13 +54,15 @@ $ podspawn run review --project backend --branch release/1.4
 ## What happens
 
 <Steps>
-<Step>If `--project` is set, clones the repo into a temporary workspace under `~/.podspawn/workspaces/`</Step>
+<Step>If `--project` is set, clones the repo into a temporary workspace under `~/.podspawn/workspaces/.tmp-&lt;name&gt;-&lt;unix-nano&gt;/`</Step>
 <Step>Reads the Podfile from that clone, builds or reuses the image, and bind-mounts the checkout into the container</Step>
 <Step>Creates a container with a non-root user (UID 1000, home at `/home/<username>`, passwordless sudo)</Step>
 <Step>Attaches an interactive shell as that user</Step>
 <Step>When you disconnect (exit the shell or close the terminal), the container is destroyed</Step>
 <Step>If this was a project-backed run, the temporary workspace is removed too</Step>
 </Steps>
+
+If the process is interrupted mid-run or mid-clone, podspawn may leave a `.tmp-*` workspace behind. Those directories are safe to remove manually once you confirm no matching session is still running.
 
 No state is persisted after disconnect. If you need a machine that survives disconnects, use `podspawn create` instead.
 

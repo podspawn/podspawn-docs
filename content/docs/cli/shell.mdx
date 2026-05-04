@@ -42,7 +42,7 @@ $ podspawn shell alice@backend
 
 This is the primary way to use podspawn locally. SSH is a separate feature for remote access, team servers, and IDE integration.
 
-For project-backed machines created with `podspawn create --project ...`, `shell` also acts as the restart entrypoint. If the container was stopped with `podspawn stop`, podspawn recreates it from the saved workspace under `~/.podspawn/workspaces/<name>/`, reruns `on_start`, and skips `on_create` unless the workspace never initialized successfully.
+For project-backed machines created with `podspawn create --project ...`, `shell` also acts as the restart entrypoint. If the container was stopped with `podspawn stop`, podspawn recreates it from the saved workspace under `~/.podspawn/workspaces/<name>/`, reruns `on_start`, and skips `on_create` once the machine's persisted initialization flag is set. If a previous `on_create` failed before initialization completed, `shell` retries it.
 
 ## When you need SSH instead
 

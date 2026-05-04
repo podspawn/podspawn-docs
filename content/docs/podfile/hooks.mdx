@@ -45,7 +45,7 @@ on_create: |
   python manage.py migrate
 ```
 
-If the container already exists when you connect, `on_create` does not run again. For local branch workspaces, stopping and restarting the machine also skips `on_create`, because podspawn persists the initialized workspace separately from the container. To re-run it, remove the workspace and create a new machine.
+If the container already exists when you connect, `on_create` does not run again. For local branch workspaces, stopping and restarting the machine also skips `on_create` once initialization succeeded, because podspawn persists the initialized workspace separately from the container. If initialization failed earlier, the next `create` or `shell` retries `on_create`, so the hook should be idempotent. To force a clean rerun after a successful initialization, remove the workspace and create a new machine.
 </Tab>
 
 <Tab value="on_start">
@@ -71,7 +71,7 @@ Both hooks run with these properties:
 - **Working directory:** `/home/<username>` (the user's home directory).
 - **Shell:** `sh -c "<script>"`. The script is passed as a single string.
 - **Sudo:** Available without a password. Podfile-built images always include sudo and a NOPASSWD sudoers entry for the container user.
-- **Exit code:** `on_create` is fatal. If it exits non-zero, podspawn tears down the failed container and returns an error. For local named project machines, the checkout is left on disk so you can inspect and fix it before retrying. `on_start` remains non-fatal and logs a warning on failure.
+- **Exit code:** `on_create` is fatal in local machine creation. If it exits non-zero, podspawn tears down the failed container and returns an error. For local named project machines, the checkout is left on disk so you can inspect and fix it before retrying. `on_start` remains non-fatal and logs a warning on failure.
 
 ### Environment variables
 
@@ -260,6 +260,8 @@ Common causes:
 - The container does not have `git` installed. Add `git` to `packages`.
 - The repo URL requires authentication but no credentials are available inside the container.
 - Network issues from inside the container (DNS, proxy).
+
+In local `podspawn create` flows there is usually no forwarded `SSH_AUTH_SOCK`, so hooks or dotfiles installs that need private SSH git access must rely on host-side git auth, HTTPS tokens, or another credential path.
 
 ### on_create ran but setup is incomplete
 

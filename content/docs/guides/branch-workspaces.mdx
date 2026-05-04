@@ -1,0 +1,46 @@
+---
+title: Branch Workspaces
+description: Use create, shell, stop, and rm with project-backed local workspaces for isolated branch-specific environments.
+---
+
+Branch workspaces let you create multiple isolated local machines from one registered project, each pinned to its own branch and host checkout.
+
+## Flow
+
+```bash
+podspawn add-project backend --repo https://github.com/company/backend
+podspawn create auth-fix --project backend --branch feat/auth-retry
+podspawn shell auth-fix
+podspawn stop auth-fix
+podspawn rm auth-fix
+```
+
+Podspawn clones the project into `~/.podspawn/workspaces/<name>/`, mounts that checkout into the container, and keeps the workspace on disk across `stop`/`shell` cycles.
+
+## Lifecycle
+
+- `podspawn create <name> --project <project> [--branch <branch>]` creates the workspace, starts the container, runs `on_create` once for a fresh initialization, then runs `on_start`.
+- `podspawn shell <name>` reattaches to a running machine or recreates a stopped container from the saved workspace.
+- `podspawn stop <name>` removes the container and sidecars but keeps the workspace and machine metadata.
+- `podspawn rm <name>` removes the local workspace and machine metadata. Use `--force` if the machine is still running.
+- There is no dedicated `podspawn reset <name>` command yet. For now, use `podspawn rm <name>` followed by `podspawn create <name> --project ...` to get a clean checkout.
+
+## Branch selection
+
+Branch resolution follows this order:
+
+1. `--branch`
+2. Podfile top-level `branch:`
+3. Repo default branch
+
+`--branch` requires `--project`.
+
+## Hooks
+
+- `on_create` runs after the repo is cloned into the workspace.
+- Successful initialization prevents `on_create` from rerunning after `stop` and `shell`.
+- If `on_create` fails before initialization completes, the checkout is preserved and the next `create` or `shell` retries it. Keep the hook idempotent.
+
+## Ephemeral runs
+
+`podspawn run <name> --project <project>` uses the same branch resolution rules but clones into a temporary `.tmp-*` workspace under `~/.podspawn/workspaces/`. That directory is removed on normal teardown and may remain behind if the process is interrupted.
