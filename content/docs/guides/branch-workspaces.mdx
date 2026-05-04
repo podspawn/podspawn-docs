@@ -1,46 +1,149 @@
 ---
 title: Branch Workspaces
-description: Use create, shell, stop, and rm with project-backed local workspaces for isolated branch-specific environments.
+description: Run multiple isolated local machines from one registered project, each pinned to its own branch and host checkout
 ---
 
-Branch workspaces let you create multiple isolated local machines from one registered project, each pinned to its own branch and host checkout.
+Branch workspaces let you spin up several persistent local machines from a single registered project, each backed by its own checkout under `~/.podspawn/workspaces/<name>/`. The workspace survives `stop` and is reused on `shell`, so you can park a half-finished feature branch and come back to it days later.
 
-## Flow
+## Walkthrough
+
+<Steps>
+<Step>
+### Register the project once
 
 ```bash
 podspawn add-project backend --repo https://github.com/company/backend
+```
+
+`add-project` records the repo URL in `~/.podspawn/projects.yaml`. You only do this once per project.
+</Step>
+
+<Step>
+### Create a branch-specific machine
+
+```bash
 podspawn create auth-fix --project backend --branch feat/auth-retry
+```
+
+```
+✓ Creating auth-fix (podspawn/auth-fix:podfile-...)
+```
+
+Podspawn clones `feat/auth-retry` into `~/.podspawn/workspaces/auth-fix/`, builds the Podfile image, mounts the checkout into the container, runs `on_create` once, then `on_start`.
+</Step>
+
+<Step>
+### Attach a shell
+
+```bash
 podspawn shell auth-fix
+```
+
+```
+karthik@auth-fix:/workspace/backend$
+```
+
+The container starts in the bind-mounted checkout. Edits inside the container are visible on the host and vice versa.
+</Step>
+
+<Step>
+### Park it
+
+```bash
 podspawn stop auth-fix
+```
+
+The container, network, and sidecars are removed. The host checkout and the machine row in the state DB stay.
+</Step>
+
+<Step>
+### Pick it up later
+
+```bash
+podspawn shell auth-fix
+```
+
+`shell` recreates the container from the saved workspace without recloning. `on_start` runs again; `on_create` runs only if the previous initialization never finished.
+</Step>
+
+<Step>
+### Discard when done
+
+```bash
 podspawn rm auth-fix
 ```
 
-Podspawn clones the project into `~/.podspawn/workspaces/<name>/`, mounts that checkout into the container, and keeps the workspace on disk across `stop`/`shell` cycles.
+Removes the workspace directory and the machine row. Use `--force` if a session is still running.
+</Step>
+</Steps>
 
 ## Lifecycle
 
-- `podspawn create <name> --project <project> [--branch <branch>]` creates the workspace, starts the container, runs `on_create` once for a fresh initialization, then runs `on_start`.
-- `podspawn shell <name>` reattaches to a running machine or recreates a stopped container from the saved workspace.
-- `podspawn stop <name>` removes the container and sidecars but keeps the workspace and machine metadata.
-- `podspawn rm <name>` removes the local workspace and machine metadata. Use `--force` if the machine is still running.
-- There is no dedicated `podspawn reset <name>` command yet. For now, use `podspawn rm <name>` followed by `podspawn create <name> --project ...` to get a clean checkout.
+```
+create  -->  running  -->  stop  -->  stopped workspace  -->  rm
+                ^                           |
+                |    shell                  |
+                +---------------------------+
+```
 
-## Branch selection
+<TypeTable type={{
+  'create': { type: '"first run"', description: 'Clone, build image, run on_create + on_start, register machine and session', default: 'fresh' },
+  'shell': { type: '"reattach or restart"', description: 'Reuses workspace, recreates container if stopped, runs on_start (and on_create only if init never succeeded)', default: 'idempotent' },
+  'stop': { type: '"teardown"', description: 'Removes container, network, sidecars; keeps workspace and machine row', default: 'reversible' },
+  'rm': { type: '"discard"', description: 'Deletes workspace dir and machine row; project registration untouched', default: 'destructive' },
+}} />
 
-Branch resolution follows this order:
+## Branch resolution
 
-1. `--branch`
-2. Podfile top-level `branch:`
-3. Repo default branch
+<Accordions>
+<Accordion title="Precedence">
+Podspawn picks the branch in this order:
 
-`--branch` requires `--project`.
+1. `--branch` on the command line
+2. The Podfile's top-level `branch:` field
+3. The repo's default branch (resolved via `git ls-remote --symref`, with a fallback to `main` when offline)
 
-## Hooks
+The recorded branch is locked in for the life of the workspace. To switch branches without recloning, see the next section.
+</Accordion>
+<Accordion title="--branch requires --project">
+`--branch` is meaningless without `--project`. Passing it on a default-image `create` or `run` returns an error.
+</Accordion>
+</Accordions>
 
-- `on_create` runs after the repo is cloned into the workspace.
-- Successful initialization prevents `on_create` from rerunning after `stop` and `shell`.
-- If `on_create` fails before initialization completes, the checkout is preserved and the next `create` or `shell` retries it. Keep the hook idempotent.
+## Switching branches in place
+
+```bash
+podspawn switch-branch auth-fix release/1.4
+```
+
+Runs `git fetch` and `git checkout` inside the workspace without destroying the container. Use this instead of `rm` + `create` when you want to reuse the same machine for a different branch and don't need a clean slate.
+
+## Hook semantics
+
+<Callout type="warn">
+`on_create` reruns when a previous run failed before initialization completed. Keep it idempotent: re-running `apt-get install`, `pip install`, or schema migrations on an already-initialized workspace must not fail.
+</Callout>
+
+- `on_create` runs **once per workspace**, after the clone, on the very first successful create. The completion flag is persisted on the machine row.
+- If `on_create` exits non-zero, podspawn tears down the container but keeps the checkout on disk. The next `create` or `shell` retries `on_create` against the same workspace.
+- `on_start` runs on every container start (including after `stop`/`shell`) and is non-fatal — failures are logged and the shell still attaches.
+- Local `create` does not forward an SSH agent. Hooks that need authenticated git access must use HTTPS tokens, `gh auth`, or another host-side credential path.
 
 ## Ephemeral runs
 
-`podspawn run <name> --project <project>` uses the same branch resolution rules but clones into a temporary `.tmp-*` workspace under `~/.podspawn/workspaces/`. That directory is removed on normal teardown and may remain behind if the process is interrupted.
+```bash
+podspawn run review --project backend --branch release/1.4
+```
+
+`run` follows the same branch resolution rules but clones into a temporary `~/.podspawn/workspaces/.tmp-<name>-<unix-nano>/` workspace and removes it on disconnect. If the process is interrupted mid-clone, the `.tmp-*` directory may remain — it's safe to delete manually once no matching session is running.
+
+<Callout type="info">
+Use `run` for one-shot reviews and CI-like flows where you don't need state to survive disconnect. Use `create` whenever you expect to come back to the same checkout.
+</Callout>
+
+## See also
+
+- [`podspawn create`](/docs/cli/create) — full flag reference
+- [`podspawn run`](/docs/cli/run) — ephemeral counterpart
+- [`podspawn shell`](/docs/cli/shell) — reattach contract
+- [Hooks](/docs/podfile/hooks) — `on_create` and `on_start` semantics
